@@ -20,8 +20,13 @@ one thing to every terminal at once, to tell them you have walked away, and to f
 what happened while you were gone. That is all this is.
 
 - `/broadcast` — tell every session something
-- `/afk` — tell every session you're unavailable
-- `/back` — tell every session you're back, and collect status
+- `/afk` — user is away
+- `/afk sleep` — user is sleeping
+- `/afk work` — user is away at work
+- `/back` — user returned; collect what happened and what's waiting on them
+
+> **While AFK, Claude continues safe autonomous work but defers anything that may
+> require authentication, elevation, credentials, or physical user interaction.**
 
 ```
 Claude Code native session discovery + messaging
@@ -30,6 +35,49 @@ Claude Code native session discovery + messaging
 ```
 
 Not: our daemon → database → polling → hooks → custom protocol → messaging server.
+
+## Global presence
+
+**Presence belongs to the user, not to a repository or terminal.**
+
+Run `/afk` from any Claude Code session and all reachable sessions are notified. Later
+run `/back` from **any** Claude Code session — not necessarily the same one — to return
+and collect status.
+
+The terminal that ran `/afk` is not special and does not own anything. Close it, go to
+sleep, come back in the morning, open a completely different project, and `/back` there
+works exactly the same: it clears the state, tells every current session, asks for
+status, and consolidates.
+
+The commands are installed as personal skills, so they exist in every session on the
+machine regardless of repository, working directory, workspace, project or which
+terminal started them.
+
+### The state file
+
+One small JSON file, `~/.claude/session-presence/state.json`:
+
+```json
+{ "status": "afk", "mode": "sleep", "since": "2026-09-21T23:40:00+01:00", "message": null }
+```
+
+`mode` is `sleep`, `work`, or `null`. `/back` rewrites it as `{"status": "back", ...}`.
+
+It exists for one reason: a session that never saw the `/afk` — a terminal opened this
+morning — can still tell you *you were asleep for 7h 12m*. Without it, `/back` from a
+fresh terminal knows nothing about the night.
+
+It is a plain file read and written only by these three skills. No daemon, no database,
+no watcher, no background process, no scheduled task, no hook — and it must never become
+any of those. A missing, empty or corrupt file is never an error: the commands carry on
+without the elapsed time.
+
+**Idempotent.** `/afk sleep` twice, from the same terminal or different ones, is fine —
+it overwrites and re-broadcasts, keeping the original `since` so elapsed time stays
+true. `/back` twice is fine. `/back` with no prior `/afk` is fine. Presence is not a
+fragile state machine.
+
+`/broadcast` never touches it.
 
 ### Prior art
 
@@ -80,6 +128,13 @@ session that this is information, not an order and not new authorization.
 
 ### `/afk [context]`
 
+| Command | Meaning |
+|---|---|
+| `/afk` | User is away. No return time — nothing is assumed about when he's back. |
+| `/afk sleep` | User is sleeping. |
+| `/afk work` | User is away at work; may take hours to answer. |
+| `/afk volto amanhã` | Free context, passed through verbatim. |
+
 ```
 /afk sleep
 ```
@@ -89,16 +144,42 @@ Discovered 4 · delivered 4 · unavailable 0
 Sent:
 ✓ api-1f  ✓ docs-3c  ✓ web-7a  ✓ cli-2e
 
-They were told to continue autonomously within existing permissions and to record
-blockers rather than wait.
+Sleep AFK sent to 4 sessions. They will continue safe autonomous work and avoid
+actions that could trigger authentication, elevation or interactive prompts.
 ```
 
-The argument is optional — bare `/afk` works.
+The operational policy is the same for every variant; only the emphasis changes. The
+rule, in one line:
 
-**AFK does not mean unrestricted autonomy.** The message says so explicitly. It changes
-*how* a session handles needing you — preserve state, write the blocker down, move to
-independent work — and changes nothing about what it may do. A session that needed your
-approval before still needs it.
+> **While AFK, Claude continues safe autonomous work but defers anything that may
+> require authentication, elevation, credentials, or physical user interaction.**
+
+Sessions are told to keep reading, analysing, coding, fixing, testing, reviewing,
+researching, documenting and running local work they are already authorized to do — and
+**not** to message you while you're gone; it keeps for `/back`.
+
+What they defer: anything that could predictably raise an interactive prompt — a
+password manager or vault unlock, a Windows password / PIN / Hello / fingerprint / face check,
+a passkey, UAC or any elevation, a credential or browser auth popup, interactive OAuth
+or device authorization, MFA/2FA or a phone push approval, or any physical
+confirmation.
+
+**And they don't run a command just to find out whether it prompts.** A reasonable
+chance is enough to defer. "I'll run it and stop if it asks" has already failed — by
+then the prompt is open, the screen is lit, and it stays that way until you're back.
+
+A blocked step blocks only itself. Independent work continues, and the session records
+a one-line blocker for `/back`:
+
+```
+BLOCKED FOR USER: Supabase CLI authentication required before deployment. Code, tests
+and build are complete. Resume with: supabase login, then deploy.
+```
+
+**AFK does not mean unrestricted autonomy.** It is never authorization for a
+destructive action, a deploy, a merge, a publication, a production change, a purchase,
+an outbound external message, anything irreversible, or credentials not already held. A
+session that needed your approval before still needs it.
 
 Sessions that could not be reached are listed separately, under a heading saying they do
 **not** know you are away. The report never implies otherwise.
@@ -113,38 +194,62 @@ You're back. Status requested from 4 sessions.
 Discovered 4 · delivered 4 · failed 0
 ```
 
-then, as answers arrive, **blockers first**:
+then, as answers arrive — **what was waiting on you, first**:
 
 ```
-3/4 sessions responded · 1 still busy
+4/4 sessions responded
 
-⚠ Needs you
+Needs you now
   docs-3c — C:\work\billing
-    decision on the payment webhook retry window
+    Supabase CLI authentication required before deploy. Code, tests and build
+    complete. Resume with: supabase login, then deploy.
+  api-1f — C:\work\api
+    Windows elevation required to restart the service. Ready when you are.
 
-✓ Completed
-  api-1f — C:\work\api              schema migration landed, tests green
+Completed while AFK
+  web-7a — C:\work\scpe        tests and build complete
+  cli-2e — C:\work\locker   diagnostics complete
 
-→ In progress
-  api-1f    running the RLS suite
+Still running
+  api-1f    RLS suite, ~10 min left
+
+Other blockers
+  web-7a    upstream API returning 503, retrying with backoff
 
 No reply yet
-  cli-2e    interactive · busy · started 7h ago
+  ops-9d    interactive · busy · started 7h ago
 ```
+
+The order is fixed: **Needs you now** → **Completed while AFK** → **Still running** →
+**Other blockers**. The first section collects everything blocked on password manager, a
+password, PIN, Windows Hello, UAC or elevation, MFA, a passkey, a login, a credential, a
+confirmation or a human decision — each with where it stopped and how to resume.
 
 Return notice and status request go out as **one** message per session, not two.
 
+**`/back` does not authorize anything either.** Sessions may reconsider steps they
+deferred, but not execute them on the strength of your return. A session needing
+elevation says `I need elevation to continue. Ready when you are.` and waits.
+
 ## Limitations — real ones, in this build
 
-**`/afk` reaches the sessions alive right now.** A terminal opened after you leave, or
-one that was unavailable, has no idea you are away. There is no persistent presence and
-new sessions inherit nothing — that would take a hook, a daemon or a watcher, all of
-which are excluded by design. Accepted for v0.1; revisit only if a simple native
-presence mechanism appears.
+**The broadcast reaches the sessions alive right now; the state file outlives them.**
+A terminal opened after you leave, or one that was unavailable, is never notified — and
+nothing makes it read the state file on startup, because that would need a
+`SessionStart` hook, excluded by design. So a session started at 3am does not know you
+are asleep. What *is* preserved is the record: any session running `/back` later reads
+the state and reports how long you were gone, and the three commands consult the file
+whenever they need it. Honest summary:
 
-**`/back` requires no prior state**, precisely because none is stored. It works when
-`/afk` was never run, when some sessions never got it, when sessions started or ended
-while you were out, and after a restart.
+- sessions open at the moment of `/afk` receive the broadcast;
+- the global state stays on record regardless;
+- new sessions are not auto-synchronized, and no infrastructure is added to make them.
+
+Revisit only if Claude Code grows a native presence mechanism — prefer that to the file.
+
+**`/back` requires no prior `/afk`.** It works when `/afk` was never run, when some
+sessions never got it, when sessions started or ended while you were out, after a
+restart, and when the state file is missing or corrupt.
 
 **Replies are asynchronous and bounded by the turn, not by a timer.** `SendMessage` is
 fire-and-forget; a reply arrives whenever that session next reaches a tool call. `/back`
@@ -193,6 +298,12 @@ nothing has changed. Work a peer was already authorized to do, it keeps doing.
 
 A failure is isolated to its target. With eight sessions and one bad target, the other
 seven are still delivered, and the report closes with discovered / delivered / failed.
+
+**`/afk` transmits a policy; it does not enforce one.** There is no password manager
+integration, no credential handling, no control over Windows lock state, no elevation
+check and no prompt detection anywhere in this project — and none should be added. The
+receiving sessions apply the policy themselves. That is the whole point of keeping this
+a messaging layer.
 
 ## Install
 

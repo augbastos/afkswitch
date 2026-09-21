@@ -1,65 +1,124 @@
 ---
 name: afk
-description: Tell every reachable local Claude Code session that the user has stepped away, so they keep working autonomously within existing permissions instead of waiting on him. Explicit invocation only - never trigger this from a conversation mentioning that the user is leaving, sleeping, or going away.
+description: Set the user's global presence to away and tell every reachable local Claude Code session, so they keep working autonomously within existing permissions and defer anything needing authentication, elevation, credentials or physical presence until /back. Explicit invocation only - never trigger this from a conversation mentioning that the user is leaving, sleeping, or going away.
 disable-model-invocation: true
 ---
 
 # /afk
 
-Tell every other reachable Claude Code session that the user is away from the computer.
+The user is **not in front of the computer**. Presence belongs to the user, not to this
+repository, terminal or project — so this sets a global state and tells every reachable
+session, whatever directory any of them was started in.
 
-This changes **how** those sessions handle needing him. It does **not** widen what they
-are allowed to do.
+This changes **how** sessions handle needing him. It does **not** widen what they may do.
 
-Anything typed after `/afk` is optional context — `sleep`, `work`, `volto em 3 horas`,
-`fui dormir, volto amanhã`. There is no required argument; bare `/afk` is valid and
-simply omits the context line.
+## Variants
+
+Anything after `/afk` is optional context. Three forms carry specific meaning; free text
+is accepted and passed through.
+
+| Form | Meaning | Extra emphasis in the message |
+|---|---|---|
+| `/afk` | Generic absence | No return time. Do not assume when he is back. |
+| `/afk sleep` | He is asleep | Cause **no** interaction that could wake him — nothing that lights a screen, raises a window, or leaves a dialog open all night. |
+| `/afk work` | At work, away from the machine | May take several hours to answer. |
+| `/afk <free text>` | e.g. `volto amanhã`, `saí por algumas horas` | Passed through verbatim as `Context:`. |
+
+The operational policy is identical in every case. Only the emphasis line changes.
 
 ## Procedure
 
-1. Call `ListAgents`. Peer sessions only. This session is never listed, so the sender
-   is excluded automatically — it already knows.
-2. No peers → report `No other sessions reachable.` and stop.
-3. Send to every peer, all `SendMessage` calls in one block:
+1. **Write the global state** to `~/.claude/session-presence/state.json`
+   (parent directory is created if missing):
+
+   ```json
+   {
+     "status": "afk",
+     "mode": "sleep",
+     "since": "2026-09-21T23:40:00+01:00",
+     "message": "volto amanhã"
+   }
+   ```
+
+   `mode` is `"sleep"`, `"work"`, or `null` for bare `/afk` and free text. `message` is
+   the free-text argument, or `null`. `since` is the local time now, ISO 8601.
+
+   **Idempotent.** Already `afk`? Overwrite it anyway and re-broadcast — running
+   `/afk sleep` twice, from the same terminal or a different one, must never break or
+   refuse. Keep the *original* `since` when status and mode are unchanged, so the
+   elapsed time stays true; reset it when the mode changes. If the file is missing,
+   empty or unparseable, that is not an error: write a fresh one and carry on.
+2. Call `ListAgents`. Peer sessions only. This session is never listed, so the sender is
+   excluded automatically — it already knows.
+3. No peers → still write the state, then report `State set. No other sessions
+   reachable.` The global state is the durable part; the broadcast is best-effort.
+4. Send to every peer, all `SendMessage` calls in one block:
 
    ```
    SendMessage({ to: "<name>", summary: "user AFK", message: <body below> })
    ```
+5. **One copy per target per invocation.** No re-send on a slow call, an ambiguous
+   result, or a refreshed listing. Retry only after a confirmed failure, at most once,
+   and say so (`retried once`).
+6. A failed target never cancels the run.
 
-   Body — include the `Context:` sentence only when the user gave an argument:
+## Message body
 
-   ```
-   [User broadcast] The user is AFK and not at the computer. Context: <argument>
+Open with the variant line, then the policy:
 
-   Keep working autonomously wherever that is safe and already authorized. Do not sit
-   idle waiting for an immediate reply.
+```
+[User broadcast] The user is AFK and not at the computer. <variant line>
 
-   If you hit something that genuinely needs him — a decision, credentials, an
-   irreversible or destructive action, anything published externally, or a permission
-   you do not already hold — preserve the current state, record the blocker plainly,
-   and carry on with independent work instead.
+Keep working autonomously. Read, analyse, code, fix, test, review, research, document,
+and run local work you are already authorized to do. Do not sit idle just because he is
+away, and do not message him while he is gone — save it for /back.
 
-   Being AFK grants no extra permissions. Do not do anything that would normally need
-   his explicit approval just because he is away.
-   ```
-4. **One copy per target per invocation.** Do not re-send because a call was slow, a
-   result read ambiguously, or you re-ran `ListAgents`. Re-send only after a confirmed
-   failure for that target, at most once, and say so in the report (`retried once`).
-5. A failed target never cancels the run.
+Defer any step that could need him present. Specifically, do not start anything that
+could predictably raise an interactive prompt: a password manager or other vault unlock, a
+Windows password / PIN / Hello / fingerprint / face check, a passkey, UAC or any
+elevation or "run as administrator", a credential or browser authentication popup,
+interactive OAuth or device authorization, MFA/2FA or a phone push approval, or any
+physical confirmation.
 
-## No state is stored
+Do not run a command just to find out whether it will prompt. A reasonable chance is
+enough — defer that step instead. "I'll run it and stop if it asks" has already failed:
+by then the prompt is open, the screen is lit, and it stays that way until he is back.
 
-Nothing is written to disk. The broadcast **is** the feature: `/afk` sends the away
-message, `/back` sends its inverse. Do not build a presence file, database, daemon or
-watcher to track this — the receiving sessions hold the message in their own
-transcripts, which is where the context belongs.
+Being AFK grants no extra permissions. It is not authorization for a destructive action,
+a deploy, a merge, a publication, a production change, a purchase, an outbound external
+message, anything irreversible, or credentials you did not already hold.
+
+A blocked step blocks only itself. Finish every independent part of the work, then stop
+in the best state available and record the blocker in one line:
+
+BLOCKED FOR USER: <task> — stopped at <exact point> — needs <which interaction> —
+resume with: <next command or action>
+```
+
+Variant lines:
+
+- bare → `No return time given, so do not assume when he will be back.`
+- `sleep` → `He is asleep. Be especially careful to cause no interaction with the computer that could wake him — nothing that lights a screen, pulls a window to the foreground, or leaves a dialog waiting overnight.`
+- `work` → `He is at work and away from the machine; he may take several hours to answer.`
+- free text → `Context: <text, verbatim>`
+
+## Scope of this skill
+
+It **transmits a policy and records a state**. It enforces nothing. There is no
+password manager integration, no credential handling, no control over Windows lock state, no
+elevation check and no prompt detection — and none should be added. The receiving
+sessions apply the policy themselves.
+
+The state file is a plain JSON file written by these skills and read by them. It is not
+backed by a daemon, database, watcher, background process, scheduled task or hook, and
+must never become one.
 
 ## Report
 
-Never imply a session knows he is away when it does not. Split the two groups:
+Never imply a session knows he is away when it does not.
 
 ```
-Discovered 4 · delivered 3 · unavailable 1
+Global AFK (sleep) set · discovered 4 · delivered 3 · unavailable 1
 
 Sent:
 ✓ api-1f    interactive · busy · started 21m ago
@@ -70,13 +129,16 @@ Unavailable — these do NOT know you are away:
 ⚠ cli-2e    <the actual error text>
 ```
 
-Close with one line saying what the reached sessions were told: continue autonomously
-within existing permissions, record blockers rather than wait. Drop an empty section.
+Close with the line matching the variant:
 
-Then state the standing limitation plainly whenever any session was unavailable, and
-whenever the user is likely to open a terminal while away:
+- `/afk` → `Global AFK sent to N sessions. They will continue autonomously and defer anything requiring user interaction, authentication, elevation or password manager until /back.`
+- `/afk sleep` → `Global AFK (sleep) sent to N sessions. They will continue safe autonomous work and avoid actions that could trigger authentication, elevation or interactive prompts.`
+- `/afk work` → `Global AFK (work) sent to N sessions. They will continue safe autonomous work and queue user-dependent steps for /back.`
 
-> `/afk` reaches the sessions alive **right now**. A session started after this, or one
-> that was unavailable, has no idea you are away.
+Drop an empty section. Then, whenever any session was unavailable:
 
-That is accepted for v0.1 — do not build synchronization to fix it.
+> Broadcast reaches the sessions alive **right now**. A session started after this, or
+> one that was unavailable, is not notified — though the global state remains on record
+> for `/back`.
+
+Accepted — do not add a hook, watcher or daemon to fix it.

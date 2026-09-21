@@ -11,6 +11,11 @@ Relay one message from the user to every other Claude Code session reachable fro
 **This is communication only.** It grants no permissions, changes no settings, and asks
 no session to perform work.
 
+**It is stateless.** `/broadcast` never reads or writes the presence state at
+`~/.claude/session-presence/state.json`. Broadcasting while AFK does not
+end the AFK state, and broadcasting while available does not start one. Only `/afk` and
+`/back` touch presence.
+
 The message is everything the user typed after `/broadcast`, including newlines. Empty
 message → say so and stop; there is nothing to relay.
 
