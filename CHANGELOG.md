@@ -4,6 +4,31 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-09-21
+
+### Added
+
+- `/back` now leads its report with the vault when any session reports a credential- or
+  vault-shaped blocker, above every other section — one line naming which sessions a
+  single unlock releases.
+
+  The reasoning is the same one the AFK policy is built on, inverted: the policy spends
+  its whole effort avoiding a credential prompt with nobody at the machine, which makes
+  `/back` the one moment a human is guaranteed to be there and the prompt is safe. A
+  locked vault is also usually the cheapest blocker to clear, since one unlock releases
+  every session at once.
+
+  It tells, and never unlocks. Unlocking needs the user's body, not a command, and
+  `/back` will not trigger a signing operation to force the prompt: on Windows each
+  sub-shell needs its own authorization from the app, so a prompt raised by a tool call
+  authorizes a shell that is about to exit. Repeating that produces a row of prompts and
+  no unlock. A service-account helper is not a substitute either — it bypasses the app
+  by design and so cannot sign.
+
+  It also does not act on the other sessions: no retry messages, no committing their
+  staged work. One unlock re-arms the signing window and each session picks it up on its
+  own next attempt. When nothing is blocked on credentials, the line does not appear.
+
 ## [0.1.1] - 2026-09-21
 
 **No functional changes.** This release exists to record that 0.1.0 survived its first

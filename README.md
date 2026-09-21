@@ -231,6 +231,31 @@ Return notice and status request go out as **one** message per session, not two.
 deferred, but not execute them on the strength of your return. A session needing
 elevation says `I need elevation to continue. Ready when you are.` and waits.
 
+#### The vault goes first
+
+`/back` is the one moment a human is guaranteed to be at the machine — which is exactly
+what the AFK policy spends all its effort avoiding the rest of the time. That makes it
+the only safe moment to raise a credential prompt, and a locked vault is usually the
+cheapest blocker to clear: one unlock releases every session at once.
+
+So when any session reports a vault- or credential-shaped blocker, `/back` opens above
+every other section with:
+
+```
+🔑 Unlock password manager now — re-arms the 24h signing window and releases the staged
+   commits in cli-2e, api-1f and web-7a
+```
+
+It **tells you; it never unlocks**. That needs your body, not a command. It will not
+trigger a signing operation to force the prompt either: on Windows each sub-shell needs
+its own authorization from the app, so a prompt raised by a tool call authorizes a shell
+that is about to exit — repeat that and you get a row of PIN prompts for nothing.
+
+It also does not act on the other sessions: no "retry now" messages, no committing their
+staged work. One unlock re-arms the window and each session picks it up by itself.
+
+When nothing is blocked on credentials, the line does not appear at all.
+
 ## Limitations — real ones, in this build
 
 **The broadcast reaches the sessions alive right now; the state file outlives them.**

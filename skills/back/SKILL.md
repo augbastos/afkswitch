@@ -103,6 +103,36 @@ You were AFK (sleep) for 7h 12m · discovered 4 · delivered 4 · failed 0
 Omit the elapsed line entirely when the state file gave nothing — never guess a
 duration.
 
+### The vault goes above everything
+
+`/back` is the one moment a human is guaranteed to be at the machine, which makes it the
+only safe moment to raise a credential prompt — avoiding one with nobody there is the
+whole point of the AFK policy. A locked vault is also the cheapest blocker to clear: one
+unlock typically releases every session at once.
+
+So when any session reports a vault- or credential-shaped blocker (password manager, a signing
+key, a password, a PIN or Hello check), open the report with one line naming what a
+single unlock releases, above every other section:
+
+```
+🔑 Unlock password manager now — re-arms the 24h signing window and releases the staged
+   commits in cli-2e, api-1f and web-7a
+```
+
+**Do not attempt the unlock.** It needs his body, not a command. Never run a signing
+operation to force the prompt: on Windows each sub-shell needs its own authorization
+from the app, so a prompt raised from here authorizes a shell that is about to exit, and
+repeating that is the nine-PINs-in-one-response incident. A service-account helper does
+not substitute either — it bypasses the app by design and therefore cannot sign.
+
+**Do not act on the other sessions.** Do not tell them to retry and do not commit their
+staged work. One unlock re-arms the window; each session picks it up on its own next
+attempt.
+
+Say nothing about the vault when no session reported that kind of blocker.
+
+### Consolidation
+
 Then consolidate in this fixed order. **`Needs you now` always comes first** — it is the
 only part that cannot proceed without him:
 
