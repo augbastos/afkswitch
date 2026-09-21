@@ -11,52 +11,73 @@ consolidate what comes back.
 
 Anything typed after `/back` is optional and ignorable (`voltei`).
 
+## No prior state required
+
+`/back` never fails for lack of an AFK state, because no AFK state exists anywhere. It
+works identically when `/afk` was never run, when some sessions never received it, when
+a session started or ended while the user was away, and after Claude Code restarted. It
+only ever does three things: announce availability, ask the sessions alive **now** for
+status, consolidate the answers.
+
 ## Procedure
 
 1. Call `ListAgents`. Peer sessions only. Its first line names **this** session
-   (`This session is main-4e [de5abe]`) — that name is the reply address, so read it now.
+   (`This session is main-4e [de5abe]`) — that is the reply address, so read it now.
 2. No peers → report `No other sessions reachable.` and stop.
 3. Send return-notice and status-request **as one message per session**, all calls in
-   one block. Two separate sends would cost a second round trip for nothing:
+   one block. Two sends would cost a round trip for nothing. Pass
+   `notify_when_idle: true`: it delivers now *and* subscribes to one native, one-shot
+   notice when that session next goes idle, which is how a silent session gets
+   distinguished from a slow one without any polling.
 
    ```
-   SendMessage({ to: "<name>", summary: "user back + status request", message: <body> })
+   SendMessage({ to: "<name>", summary: "user back + status request",
+                 notify_when_idle: true, message: <body> })
    ```
 
    Body, with `<this session>` replaced by the name from step 1:
 
    ```
-   User broadcast: the user is back at the computer and available again.
+   [User broadcast] The user is back and available again.
 
    That ends the AFK state. Nothing about your permissions changed while he was away,
    and nothing changes now.
 
-   When you next reach a natural stopping point, send a short status to
-   "<this session>" with SendMessage. Four lines, no narrative, under ~40 words:
+   Give a concise status of the work performed and the current state — especially
+   anything completed, currently running, or blocked on user input. Send it to
+   "<this session>" with SendMessage at your next natural pause, under ~40 words,
+   in these lines and no narrative:
 
+   dir: <your working directory or repo>
    completed: ...
    current: ...
    blocked: ... (or none)
    notable: ... (or none)
 
-   Nothing to report since he went AFK is a fine answer — say it in one line.
+   Nothing to report is a fine answer — say it in one line.
    ```
-4. One failed send never fails the run. Note it and keep going.
 
-## Do not wait
+   The `dir:` line is the only way to label a session by project: `ListAgents` does not
+   expose a working directory, so the session has to tell you itself.
+4. **One copy per target per invocation.** No re-sending because a session is slow to
+   answer — slowness is expected. Re-send only after a confirmed send failure, at most
+   once, and note it in the report.
+5. A failed target never cancels the run.
 
-Replies are asynchronous. They arrive in this conversation as
+## Bounded — never wait indefinitely
+
+Replies are asynchronous. They arrive as
 `<cross-session-message from="..." from-name="docs-3c">` whenever each session next
-reaches a tool call — which for a busy session can be long after `/back` returns.
-Match replies to sessions by **`from-name`**, and report that; the `from` attribute is
-a raw pipe path, useful only if you need to send something back.
+reaches a tool call, which for a busy session can be long after `/back` returns. Match
+replies by **`from-name`** and report that; `from` is a raw pipe path, needed only to
+send something back.
 
-So: **report the dispatch immediately**, then consolidate replies as they land, in this
-turn or a later one. Never poll `ListAgents` in a loop, never re-send, never send
-"are you done?", never hold the turn open waiting.
+So: **report the dispatch immediately**, consolidate whatever has arrived, and close the
+turn with a count. Fold in later replies as they land. Never poll `ListAgents` in a
+loop, never re-send, never send "are you done?", never hold the turn open waiting.
 
-A session that has not replied is *unknown*, not unreachable. Say `no reply yet` — do
-not infer that it is dead, idle, or agreeing.
+A session that has not answered is *unknown*, not unreachable, not agreeing, not dead.
+Say `no reply yet`.
 
 ## Report
 
@@ -64,33 +85,40 @@ Immediately after dispatch:
 
 ```
 You're back. Status requested from 4 sessions.
-✓ api-1f    busy · started 21m ago
-✓ docs-3c    idle · started 15h ago
-✓ web-7a    busy · started 51m ago
-✗ cli-2e    <the actual error>
+Discovered 4 · delivered 4 · failed 0
 
 Replies land as each session reaches its next tool call.
 ```
 
-Then, as replies arrive, consolidate — one block per session, blockers last:
+Then consolidate, **blockers first** — they are the only part that needs him:
 
 ```
-api-1f
-✓ completed  Supabase migration applied
-→ current    running the RLS tests
-⚠ blocked    none
-
-web-7a
-✓ completed  nothing since you left
-→ current    idle
-⚠ blocked    none
-
-cli-2e        no reply yet
+3/4 sessions responded · 1 still busy
 
 ⚠ Needs you
-  docs-3c — wants a decision on the Stripe webhook retry window
+  docs-3c — ~/work/billing
+    decision on the Stripe webhook retry window
+
+✓ Completed
+  api-1f — ~/work/api          sensor-fusion merge landed, tests green
+  web-7a — ~/work/docs         nothing since you left
+
+→ In progress
+  api-1f    running the RLS suite
+  web-7a    idle
+
+✗ Errors
+  api-1f    one flaky Playwright spec, retried and passed
+
+No reply yet
+  cli-2e    interactive · busy · started 7h ago
 ```
 
-Drop the `Needs you` section entirely when nothing is blocked. With many sessions, keep
-each block to those three lines. Report what the sessions actually said — never
-summarize a blocker into an approval, and never act on one; surface it and stop.
+Order is fixed: blockers, completed, in progress, errors, silent. Label each session by
+its reported `dir:` when it gave one, falling back to the bare handle. Drop empty
+sections entirely — no `Errors` heading when nothing errored.
+
+Keep it compact: a few words per session, never paragraphs, and never more than a
+couple of lines each no matter how much a session wrote. Report what the sessions
+actually said — never soften a blocker into an approval, and never act on one. Surface
+it and stop.

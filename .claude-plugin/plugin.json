@@ -1,12 +1,12 @@
 {
-  "name": "session-comms",
-  "description": "Presence and messaging between local Claude Code sessions: /broadcast, /afk, /back. Built directly on the native ListAgents and SendMessage tools. No hooks, no daemon, no shared state.",
+  "name": "session-presence",
+  "description": "Three tiny skills that add broadcast and human presence semantics on top of Claude Code's native cross-session messaging: /broadcast, /afk, /back. No hooks, no daemon, no state.",
   "version": "0.1.0",
   "author": {
     "name": "Augusto Bastos",
     "url": "https://github.com/augbastos"
   },
-  "repository": "https://github.com/augbastos/claude-session-comms",
+  "repository": "https://github.com/augbastos/claude-session-presence",
   "skills": [
     "./skills"
   ]

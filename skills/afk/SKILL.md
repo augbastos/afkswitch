@@ -11,23 +11,25 @@ Tell every other reachable Claude Code session that the user is away from the co
 This changes **how** those sessions handle needing him. It does **not** widen what they
 are allowed to do.
 
-Anything the user typed after `/afk` is optional context (`sleep`, `work`,
-`volto em 3 horas`). There is no required argument.
+Anything typed after `/afk` is optional context — `sleep`, `work`, `volto em 3 horas`,
+`fui dormir, volto amanhã`. There is no required argument; bare `/afk` is valid and
+simply omits the context line.
 
 ## Procedure
 
-1. Call `ListAgents`. Peer sessions only.
+1. Call `ListAgents`. Peer sessions only. This session is never listed, so the sender
+   is excluded automatically — it already knows.
 2. No peers → report `No other sessions reachable.` and stop.
-3. Send to every peer in one block of `SendMessage` calls:
+3. Send to every peer, all `SendMessage` calls in one block:
 
    ```
    SendMessage({ to: "<name>", summary: "user AFK", message: <body below> })
    ```
 
-   Body — include the `Context:` line only when the user gave one:
+   Body — include the `Context:` sentence only when the user gave an argument:
 
    ```
-   User broadcast: the user is AFK and not at the computer. Context: <argument>
+   [User broadcast] The user is AFK and not at the computer. Context: <argument>
 
    Keep working autonomously wherever that is safe and already authorized. Do not sit
    idle waiting for an immediate reply.
@@ -40,26 +42,41 @@ Anything the user typed after `/afk` is optional context (`sleep`, `work`,
    Being AFK grants no extra permissions. Do not do anything that would normally need
    his explicit approval just because he is away.
    ```
-4. One failed send never fails the run. Note it and keep going.
+4. **One copy per target per invocation.** Do not re-send because a call was slow, a
+   result read ambiguously, or you re-ran `ListAgents`. Re-send only after a confirmed
+   failure for that target, at most once, and say so in the report (`retried once`).
+5. A failed target never cancels the run.
 
 ## No state is stored
 
 Nothing is written to disk. The broadcast **is** the feature: `/afk` sends the away
 message, `/back` sends its inverse. Do not build a presence file, database, daemon or
-watcher to track this — the receiving sessions hold the AFK message in their own
+watcher to track this — the receiving sessions hold the message in their own
 transcripts, which is where the context belongs.
 
 ## Report
 
+Never imply a session knows he is away when it does not. Split the two groups:
+
 ```
-AFK status sent to 4 sessions.
-✓ api-1f    busy · started 21m ago
-✓ docs-3c    idle · started 15h ago
-✓ web-7a    busy · started 51m ago
-✓ cli-2e    busy · started 7h ago
+Discovered 4 · delivered 3 · unavailable 1
+
+Sent:
+✓ api-1f    interactive · busy · started 21m ago
+✓ docs-3c    interactive · idle · started 15h ago
+✓ web-7a    interactive · busy · started 51m ago
+
+Unavailable — these do NOT know you are away:
+⚠ cli-2e    <the actual error text>
 ```
 
-Close with one line stating what they were told: to continue autonomously within
-existing permissions and to record blockers rather than wait.
+Close with one line saying what the reached sessions were told: continue autonomously
+within existing permissions, record blockers rather than wait. Drop an empty section.
 
-Carry each row's state from `ListAgents` — a bare session name means nothing on its own.
+Then state the standing limitation plainly whenever any session was unavailable, and
+whenever the user is likely to open a terminal while away:
+
+> `/afk` reaches the sessions alive **right now**. A session started after this, or one
+> that was unavailable, has no idea you are away.
+
+That is accepted for v0.1 — do not build synchronization to fix it.
