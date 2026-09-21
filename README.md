@@ -119,11 +119,11 @@ then, as answers arrive, **blockers first**:
 3/4 sessions responded · 1 still busy
 
 ⚠ Needs you
-  docs-3c — ~/work/billing
-    decision on the Stripe webhook retry window
+  docs-3c — C:\work\billing
+    decision on the payment webhook retry window
 
 ✓ Completed
-  api-1f — ~/work/api     sensor-fusion merge landed, tests green
+  api-1f — C:\work\api              schema migration landed, tests green
 
 → In progress
   api-1f    running the RLS suite
@@ -161,9 +161,10 @@ and Claude Desktop sessions nothing reports back at all — silence there is not
 agreement.
 
 **Session names are short handles, not project names.** `ListAgents` returns
-`api-1f [c68a8d]`, derived from the working directory, so four sessions under
-`~/work` all read as `ia-*`. The listing carries no working-directory or
-repository field, so `Wavr — ~/work/api` cannot be built from discovery alone.
+`api-1f [c68a8d]`, derived from the working directory — so several sessions rooted in
+the same parent folder all read as the same short prefix. The listing carries no
+working-directory or repository field, so a friendly `api — C:\work\api` cannot be
+built from discovery alone.
 Two consequences: `/broadcast` and `/afk` label sessions with name + kind + state + age,
 the most identifying data the listing exposes; and `/back` asks each session to report
 its own `dir:`, which is the one reliable way to get a project label. `ListAgents` also
@@ -244,7 +245,7 @@ semantics.
 
 ## Windows
 
-Developed and tested on Windows natively. `install.ps1` is PowerShell (`pwsh`), uses
+Built and tested on Windows, on one machine. `install.ps1` is PowerShell (`pwsh`), uses
 `Join-Path` and `$HOME` rather than POSIX path assumptions, and copies rather than
 symlinks — a junction or symlink would need admin rights or Developer Mode for three
 markdown files. Nothing in the project requires Bash, WSL or a POSIX shell.

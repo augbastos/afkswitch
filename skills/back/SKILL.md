@@ -96,12 +96,12 @@ Then consolidate, **blockers first** — they are the only part that needs him:
 3/4 sessions responded · 1 still busy
 
 ⚠ Needs you
-  docs-3c — ~/work/billing
-    decision on the Stripe webhook retry window
+  docs-3c — C:\work\billing
+    decision on the payment webhook retry window
 
 ✓ Completed
-  api-1f — ~/work/api          sensor-fusion merge landed, tests green
-  web-7a — ~/work/docs         nothing since you left
+  api-1f — C:\work\api                   schema migration landed, tests green
+  web-7a — C:\work\docs                  nothing since you left
 
 → In progress
   api-1f    running the RLS suite
