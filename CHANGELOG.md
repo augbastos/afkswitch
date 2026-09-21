@@ -4,6 +4,40 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-09-21
+
+**No functional changes.** This release exists to record that 0.1.0 survived its first
+real overnight, multi-session run — it was dogfooded, not just tested.
+
+### First overnight dogfood
+
+`/afk sleep` at 01:53, `/back` at 10:15 — 8h 21m, across four live peer sessions
+working on unrelated projects.
+
+- **Broadcast:** the AFK message was delivered to all four sessions; all four were
+  reached, none was unavailable.
+- **Recovery:** `/back` was answered by all four, each in the requested
+  `dir:/needs-user:/completed:/running:/other-blockers:` shape. Replies arrived
+  asynchronously over ~2 minutes and consolidated `Needs you now` first, as specified.
+- **`notify_when_idle` earned its place.** All four idle notices fired, which is what
+  separated "this report is final" from "still working" — with no polling, no re-sends
+  and no held-open turn.
+- **The absence policy held under a real failure.** The password manager signing key expired
+  mid-run. Three independent sessions each hit it, and each **staged the work and
+  stopped** rather than raising a vault-unlock prompt on a sleeping user's machine.
+  None bypassed signing. That is precisely the behaviour `/afk sleep` exists to produce,
+  and it was exercised by accident rather than by design — the strongest evidence
+  available that the policy transmits intact.
+- No hooks, daemon, watcher or polling loop were involved at any point.
+
+### Validated only partially
+
+The overnight `/back` ran in the **same session** that had run `/afk`. The
+"`/back` from any terminal" property was exercised during testing — a second session
+read the global state written by the first — but has not yet been exercised in a real
+overnight cycle. Worth repeating from a different terminal before treating it as proven
+in the field.
+
 ## [0.1.0] - 2026-09-21
 
 First implementation: three tiny skills that provide broadcast and human presence

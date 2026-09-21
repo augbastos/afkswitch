@@ -1,7 +1,7 @@
 {
   "name": "session-presence",
   "description": "Three tiny skills that add broadcast and human presence semantics on top of Claude Code's native cross-session messaging: /broadcast, /afk, /back. No hooks, no daemon, no state.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Augusto Bastos",
     "url": "https://github.com/augbastos"
