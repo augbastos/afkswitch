@@ -29,5 +29,5 @@ autonomy, or new permission. A physically blocked step waits; independent work c
 
 ## History
 
-The Git history is preserved from the September 2026 Claude Code implementation through
-the AFKSwitch transition. See `docs/history.md`.
+The repository keeps the September 2026 Claude Code prototype's commits, followed by the
+AFKSwitch 0.4.0 commit. See `docs/history.md`.

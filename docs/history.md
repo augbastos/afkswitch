@@ -14,6 +14,6 @@ On 27 September 2026 the project began its transition to **AFKSwitch**:
 - state moved conceptually from a Claude-specific location to `~/.afkswitch/state.json`;
 - the contract was documented independently of any model vendor.
 
-The original Git history is intentionally preserved so the evolution from the working Claude utility to a model-agnostic presence contract remains visible.
+The prototype's commits (0.1.0 to 0.3.1) are kept in this repository, so the evolution from the working Claude utility to a model-agnostic presence contract stays visible. The AFKSwitch 0.4.0 work follows as a single commit; `CHANGELOG.md` lists what it changed.
 
-The public repository `augbastos/afkswitch` carries that same history, with one change: commit author e-mails were normalized to the GitHub noreply address. Commit messages, dates, and contents are unchanged. The original `claude-session-presence` repository remains private as the archive.
+Before publication, the prototype commits were prepared for a public repository: author e-mails were normalized to the GitHub noreply address, and names of the author's personal tools, session handles, and local paths were replaced with generic ones. Commit messages and dates are otherwise unchanged.

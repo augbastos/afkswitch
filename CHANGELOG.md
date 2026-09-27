@@ -8,7 +8,7 @@ All notable changes to this project are documented here. Format follows
 
 ### Changed
 
-- Renamed the product from `claude-session-presence` to **AFKSwitch** while preserving the original Git history.
+- Renamed the product from `claude-session-presence` to **AFKSwitch**, keeping the prototype's commits in the repository history.
 - Reduced the public product to the universal `/afk [optional context]` + `/back` contract.
 - Reframed Claude Code as the first/reference adapter rather than the product identity.
 - Moved portable presence state to `~/.afkswitch/state.json` with a versioned, host-neutral schema.
