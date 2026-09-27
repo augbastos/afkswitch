@@ -1,3 +1,4 @@
-# Local agent/tooling state, never part of the package
-.impeccable/
-.claude/
+dist/
+__pycache__/
+*.pyc
+.DS_Store

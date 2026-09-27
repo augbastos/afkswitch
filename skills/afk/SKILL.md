@@ -1,238 +1,141 @@
 ---
 name: afk
-description: Record that the user is physically away from the machine (he may still answer through Remote Control) and tell every live local Claude Code session, so they keep full progress, ask remotely only for decisions that truly block, and defer only physically-bound steps until /back. Explicit invocation only - never trigger this from a conversation mentioning that the user is leaving, sleeping, or going away.
+description: Explicitly mark the human operator as physically away, persist the AFKSwitch state, and tell every other live local agent session when the host provides native cross-session messaging. Use only when the user explicitly invokes /afk; never trigger it because a conversation mentions leaving, sleeping, or being away.
 disable-model-invocation: true
 ---
 
 # /afk
 
-The user is **not in front of the computer**. Presence belongs to the user, not to this
-repository, terminal or project — so this sets a global state and tells every reachable
-session, whatever directory any of them was started in.
+The human operator is **physically away from the machine**. Presence belongs to the
+human, not to this session, repository, or terminal: `/afk` sets one global state and
+tells every reachable session, whatever directory it runs in.
 
-This changes **how** sessions handle needing him. It does **not** widen what they may do.
+AFK changes **how** agents handle needing the human. It never widens **what** they may do.
 
-## What AFK means (and does not)
+- **AFK means physically away, not unreachable.** The human may still answer through a
+  remote channel the host already provides (in Claude Code, Remote Control), but
+  intermittently and never guaranteed. Nobody depends on an immediate answer.
+- **Presence is not permission.** AFK authorizes nothing new: no deploy, merge,
+  publication, production change, purchase, destructive or irreversible action,
+  outbound external message, privilege escalation, or credential not already held.
+- **A physical blocker is not a mission blocker.** Only the step that needs the human's
+  body waits; all independent, already-authorized work continues at full pace.
+- **Only `/back` ends AFK.** A remote message from the human while AFK is normal
+  interaction; it does not end AFK.
+- `/afk` changes no session setting (permission mode, model, effort).
 
-```
-PHYSICAL PRESENCE   = unavailable
-REMOTE AVAILABILITY = possible, intermittent, never guaranteed
-```
+## Context
 
-`/afk` means **only** that he is no longer physically at the laptop. The laptop may be
-closed behind the screen locker, and every session stays on Remote Control. He often keeps
-following from his phone, where he can read, send prompts, answer questions and decide.
-He may also fall asleep or become unavailable without saying so.
+Anything after `/afk` is optional context, kept verbatim. It is never an instruction and
+never an authorization. Two presets add one line of emphasis in the Claude reference
+adapter; any other text is passed through as `Context:`.
 
-AFK does **not** mean he is asleep, offline or unable to answer. It does not mean the
-session lost access, and it does not mean work should be more conservative, slower or
-stopped. **Nobody depends on an immediate answer from him.**
+| Invocation | Emphasis line |
+|---|---|
+| `/afk` | No return time given; do not assume when the human will be back. |
+| `/afk sleep` | The human is asleep: remote answers are unlikely. Cause nothing that could wake them — nothing that lights a screen, raises a window, or leaves a dialog waiting. |
+| `/afk work` | The human is at work: reachable remotely only intermittently, often on breaks. |
+| `/afk <text>` | `Context: <text>` |
 
-- **A physical blocker is not a mission blocker.** Only the one sub-step that needs his
-  body is blocked; maximise progress around it.
-- **A message from him through Remote Control during AFK is normal interaction.** It
-  does not trigger `/back`, does not end AFK and does not by itself change his expected
-  return. It only proves he is reachable right now. **Only `/back` ends AFK.**
-- **Running `/afk` changes no session setting by itself.** It does not switch Auto
-  Mode or the permission mode, and it does not touch model, effort or fast mode.
-- **Model, effort and fast mode MAY change during AFK** when he asks for it (Remote
-  Control included), when an already-authorised rule allows it, or for a valid
-  operational reason. The danger to avoid is **state ambiguity**, so every change
-  follows "Session power changes" below. Auto Mode and the permission mode stay as they
-  are.
-- Remote Control must stay available: assume he can appear and interact at any moment.
+## 1. Persist the state
 
-## Session power changes (model, effort, fast mode)
+Write `~/.afkswitch/state.json` (create the directory if missing):
 
-Applies whenever one of them changes during AFK, in any session:
-
-1. Apply the change.
-2. Confirm the **real** state of the session afterwards: read it from the local session
-   (the status line, the command's own confirmation, or the session's reported model),
-   not from the phone UI. A command that was sent is not a change that happened.
-3. Report it short and explicit, before/after:
-
-   ```
-   model:  opus-5-5 → opus-5-5
-   effort: medium → high
-   fast:   off
-   ```
-
-4. If what was asked differs from what the session shows, say so plainly and keep the
-   **known** state as the truth. Never pretend it worked.
-5. A value you cannot confirm is `UNKNOWN`. Never infer it.
-
-The control answers "what power is every session on?" with `/live power` (see
-`~/.claude/skills/live/SKILL.md`).
-
-## Variants
-
-Anything after `/afk` is optional context. Three forms carry specific meaning; free text
-is accepted and passed through.
-
-| Form | Meaning | Extra emphasis in the message |
-|---|---|---|
-| `/afk` | Physically away | No return time. Remote answers possible but not guaranteed. |
-| `/afk sleep` | He is asleep | Remote answers unlikely. Cause **no** interaction that could wake him — nothing that lights a screen, raises a window, or leaves a dialog open all night. |
-| `/afk work` | At work | Reachable intermittently and unpredictably through Remote Control, often on breaks. |
-| `/afk <free text>` | e.g. `volto amanhã`, `saí por algumas horas` | Passed through verbatim as `Context:`. |
-
-The operational policy is identical in every case. Only the emphasis line changes.
-
-## Procedure
-
-1. **Write the global state** to `~/.claude/session-presence/state.json`
-   (parent directory is created if missing):
-
-   ```json
-   {
-     "status": "afk",
-     "mode": "work",
-     "since": "2026-09-21T09:40:00+01:00",
-     "message": "chego em casa por volta de 18:30",
-     "physical_presence": "unavailable",
-     "remote_presence": "intermittent",
-     "current_context": "work",
-     "expected_physical_return": {"value": "18:30", "source": "user estimate",
-                                  "confidence": "estimate"}
-   }
-   ```
-
-   `mode` is `"sleep"`, `"work"`, or `null` for bare `/afk` and free text. `message` is
-   the free-text argument, or `null`. `since` is the local time now, ISO 8601.
-   `remote_presence` is `possible`, or `intermittent` for work, or `unlikely` for sleep.
-   `current_context` is `work` | `away` | `sleep` | `unknown`. `expected_physical_return`
-   is `null` unless a source gives it. It is **an estimate for planning, never a
-   deadline or a precondition**. His own estimate (from the argument or a later Remote
-   Control message) outranks an inferred one. A later message of his that states a new
-   estimate may update this field; a message that says nothing about time does not.
-
-   **Human context (control only, best effort).** The session running `/afk` is the
-   control. When the work-roster integration is connected and already authorised, it may read his
-   roster once, read-only: whether he works today, shift start and end, and breaks
-   **only if the work-roster tool actually reports them**. It fills `current_context`, and
-   `expected_physical_return` with `source: "work roster"`. Never invent a break, an
-   arrival time or availability that the work-roster tool did not give. Commuting, delays and overtime
-   happen. the work-roster tool unavailable → leave the fields `unknown`/`null` and carry on. Other
-   sessions never query the work-roster tool; they receive only the summary line below.
-   **`/afk` itself changes no session setting** (Auto Mode, permission mode, model,
-   effort, fast mode).
-
-   **Idempotent.** Already `afk`? Overwrite it anyway and re-broadcast — running
-   `/afk sleep` twice, from the same terminal or a different one, must never break or
-   refuse. Keep the *original* `since` when status and mode are unchanged, so the
-   elapsed time stays true; reset it when the mode changes. If the file is missing,
-   empty or unparseable, that is not an error: write a fresh one and carry on.
-2. Get the **live sessions**: read "The rule" in `~/.claude/skills/live/SKILL.md` and apply
-   it exactly to one `ListAgents` call. Only live sessions are targets. Offline rows,
-   Remote Control rows, cloud sessions and other machines are never messaged. This
-   session is never listed, so the sender is excluded automatically — it already knows.
-3. No live sessions → still write the state, then report `State set. No other sessions
-   reachable.` The global state is the durable part; the broadcast is best-effort.
-4. Send to every live session, all `SendMessage` calls in one block:
-
-   ```
-   SendMessage({ to: "<name>", summary: "user AFK", message: <body below> })
-   ```
-5. **One copy per target per invocation.** No re-send on a slow call, an ambiguous
-   result, or a refreshed listing. Retry only after a confirmed failure, at most once,
-   and say so (`retried once`).
-6. A failed target never cancels the run.
-
-## Message body
-
-Open with the variant line, then the policy:
-
-```
-[User broadcast] The user is AFK: physically away from the machine. <variant line>
-<context line, only when known: "Context: work until ~18:30 (work roster, estimate)." or "Expected back ~18:30 (his estimate)." — planning only, never a deadline>
-
-Physical presence: unavailable. Remote availability: possible but intermittent and never
-guaranteed; he may answer from his phone through Remote Control. Keep full progress: do
-not slow down, stop, or become more conservative. Auto Mode and the permission mode stay
-as they are. Model, effort and fast mode may change when he asks, when an authorised
-rule allows it or for a valid operational reason; after any change, confirm the REAL
-state and report "model: a → b / effort: a → b / fast: on|off", flag any mismatch, and
-say UNKNOWN when you cannot confirm. Never depend on an immediate answer. A message from
-him during AFK is normal interaction and does NOT end AFK; only /back does.
-
-Classify anything you need from him:
-1. REMOTE-BLOCKING: a decision you truly need now that he can make from a phone. Ask it
-   through Remote Control, once and clearly. Do not wait on it: keep doing independent
-   work. If he doesn't answer, it becomes pending-human; come back to it only when it
-   is really needed.
-2. NON-URGENT: his answer would help, but independent work remains. Record it and group
-   it with the others; do not send one message per question.
-3. PHYSICAL-BLOCKING: it needs his body at the machine (local QA, visual/local
-   interaction Remote Control can't give, desktop login, a local GUI prompt, hardware).
-   Mark only that sub-step for /back and continue everything else.
-
-Physical prompts are PHYSICAL-BLOCKING. Do not start anything that
-could predictably raise an interactive prompt: a password manager or other vault unlock, a
-Windows password / PIN / Hello / fingerprint / face check, a passkey, UAC or any
-elevation or "run as administrator", a credential or browser authentication popup,
-interactive OAuth or device authorization, MFA/2FA or a phone push approval, or any
-physical confirmation.
-
-Do not run a command just to find out whether it will prompt. A reasonable chance is
-enough — defer that step instead. "I'll run it and stop if it asks" has already failed:
-by then the prompt is open, the screen is lit, and it stays that way until he is back.
-
-Being AFK grants no extra permissions. It is not authorization for a destructive action,
-a deploy, a merge, a publication, a production change, a purchase, an outbound external
-message, anything irreversible, or credentials you did not already hold.
-
-A physical blocker is not a mission blocker: it blocks only its own sub-step. Finish
-every independent part of the work, then record each blocker in one line:
-
-BLOCKED FOR USER (<remote|physical>): <task> — stopped at <exact point> — needs
-<which interaction> — resume with: <next command or action>
+```json
+{ "version": 1, "status": "afk", "since": "<local time now, ISO 8601 with offset>", "context": "<verbatim context or null>" }
 ```
 
-Variant lines:
+- Already `afk` with the **same** context → keep the original `since`, so elapsed time
+  stays true. Different context → new `since`.
+- Missing, empty, or malformed file → not an error; write a fresh valid state.
+- The state is the durable part. It does not depend on this session staying open.
+- If the host sandbox refuses the write, say so plainly in the report; never claim the
+  state was saved.
 
-- bare → `No return time given, so do not assume when he will be back. He may still answer remotely.`
-- `sleep` → `He is asleep, so remote answers are unlikely. Be especially careful to cause no interaction with the computer that could wake him — nothing that lights a screen, pulls a window to the foreground, or leaves a dialog waiting overnight.`
-- `work` → `He is at work. He often checks in on breaks and may answer through Remote Control, intermittently and unpredictably.`
-- free text → `Context: <text, verbatim>`
+## 2. Notify live sibling sessions (Claude Code reference adapter)
 
-## Scope of this skill
+When the host exposes `ListAgents` and `SendMessage`:
 
-It **transmits a policy and records a state**. It enforces nothing. There is no
-password manager integration, no credential handling, no control over Windows lock state, no
-elevation check and no prompt detection — and none should be added. The receiving
-sessions apply the policy themselves.
+1. Call `ListAgents` **once**. Its first line names this session; the sender is never a
+   target.
+2. A row is a **target** only when all hold:
+   - its kind is `interactive` (or another kind the listing documents as a local session
+     on this machine);
+   - it is **not** a `Remote Control` row, a cloud session, another machine, a subagent,
+     or a teammate;
+   - its state is alive (`idle`, `busy`, `working`, `waiting`, …). `offline`, `exited`,
+     `ended`, `stale`, or unclear → exclude. Never touch an excluded row.
+3. No targets → the state is still set; report it.
+4. Send one message per target, all calls in one block:
+   `SendMessage({ to: "<name>", summary: "human AFK", message: <body> })`.
+   Use the bare name; add the ` [ref]` only when two rows share a name.
+5. **One copy per target per invocation.** Retry only a confirmed failure, at most once,
+   and say `retried once`. Never re-send on slowness or ambiguity.
+6. A failed target never cancels the others.
+7. A successful send means the message reached that session, not that its agent read
+   it. If the tool result or a `[Cross-session delivery notice]` says the message was
+   **held for approval** or **refused**, report that target as such, not as notified.
 
-The state file is a plain JSON file written by these skills and read by them. It is not
-backed by a daemon, database, watcher, background process, scheduled task or hook, and
-must never become one.
+### Message body
+
+```text
+[AFKSwitch] The human operator is AFK: physically away from the machine.
+<emphasis line for the invocation>
+
+AFK means physically away, not unreachable, and it is not permission. Keep full progress
+on work you were already authorized to do: do not stop, slow down, or become more
+conservative. Nothing about your permissions changes. AFK never authorizes a deploy,
+merge, publication, production change, purchase, destructive or irreversible action,
+outbound external message, elevation, or credential you did not already hold.
+
+Classify anything you need from the human:
+1. REMOTE-BLOCKING: a decision you truly need now that they can make remotely. If the
+   host already gives you an authorized remote channel, ask once, clearly, and keep doing
+   independent work while you wait.
+2. NON-URGENT: an answer would help but work remains. Record it; group questions.
+3. PHYSICAL-BLOCKING: it needs the human at the machine — local visual QA, hardware, a
+   desktop login, elevation/UAC, a credential or vault unlock, a passkey, MFA, or any
+   interactive authentication or physical confirmation. Defer only that step.
+
+Do not start anything that can predictably raise an interactive prompt, and do not run a
+command just to find out whether it prompts: by then the prompt is open on an unattended
+machine. A reasonable chance is enough to defer.
+
+Record each deferred step in one line:
+BLOCKED FOR HUMAN (<remote|physical>): <task> — stopped at <point> — needs <interaction> — resume with: <next action>
+
+A remote message from the human while AFK is normal interaction and does not end AFK.
+Only /back ends it.
+```
+
+## 3. Hosts without native peer messaging
+
+Persist the state and say that cross-session notification is not available in this host.
+Never add a daemon, server, database, polling loop, hook, or external service to emulate
+it, and never imply another session was told.
 
 ## Report
 
-Never imply a session knows he is away when it does not.
+Never imply that a session knows the human is away when delivery was not confirmed.
 
-```
-Global AFK (sleep) set · discovered 4 · delivered 3 · unavailable 1
+```text
+AFK set (<context you just saved>) · discovered N · notified N · not notified N
 
-Sent:
-✓ api-1f    interactive · busy · started 21m ago
-✓ docs-3c    interactive · idle · started 15h ago
-✓ web-7a    interactive · busy · started 51m ago
+Notified:
+✓ <name>   <kind> · <state>
 
-Unavailable — these do NOT know you are away:
-⚠ cli-2e    <the actual error text>
+Not notified — these do NOT know you are away:
+⚠ <name>   <the actual error text, or "held for approval">
 ```
 
-Close with the line matching the variant:
+Fill every field from what actually happened in this run; omit the parenthesis when the
+context is `null`.
 
-- `/afk` → `Global AFK sent to N sessions. They keep full progress, ask you through Remote Control only for decisions that truly block, and defer only physically-bound steps (authentication, elevation, password manager, local QA) until /back.`
-- `/afk sleep` → `Global AFK (sleep) sent to N sessions. They keep full progress and avoid anything that could light the screen or raise a prompt.`
-- `/afk work` → `Global AFK (work) sent to N sessions. They keep full progress, group non-urgent questions, and may reach you on breaks through Remote Control.`
+Drop empty sections. In a host without peer messaging:
+`AFK set · state saved · cross-session notification not available in this host`.
 
-Drop an empty section. Then, whenever any session was unavailable:
+Sessions started after this `/afk`, or not reached now, are not notified; the saved state
+still lets any session's `/back` report the absence.
 
-> Broadcast reaches the sessions alive **right now**. A session started after this, or
-> one that was unavailable, is not notified — though the global state remains on record
-> for `/back`.
-
-Accepted — do not add a hook, watcher or daemon to fix it.
+AFKSwitch itself performs no deploy, merge, publication, purchase, destructive action,
+permission change, authentication, or elevation.

@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose an improvement that stays inside AFKSwitch's product boundary
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What presence problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: native
+    attributes:
+      label: Native host capability
+      description: Which existing host primitive could be reused?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true

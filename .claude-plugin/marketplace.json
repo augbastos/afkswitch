@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "afkswitch",
+  "description": "AFKSwitch — tell your AI agents when you're away and when you're back.",
+  "owner": {
+    "name": "Augusto Bastos"
+  },
+  "plugins": [
+    {
+      "name": "afkswitch",
+      "source": "./",
+      "description": "Human presence signaling for AI agents: /afk and /back.",
+      "version": "0.4.0",
+      "author": {
+        "name": "Augusto Bastos"
+      },
+      "homepage": "https://github.com/augbastos/afkswitch",
+      "category": "productivity"
+    }
+  ]
+}

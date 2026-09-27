@@ -1,173 +1,141 @@
 ---
 name: back
-description: Clear the user's global AFK state from any session, tell every reachable local Claude Code session he is back, ask each for a short status, and consolidate what was waiting on his presence first. Explicit invocation only - never trigger this from a conversation mentioning that the user has returned.
+description: Explicitly mark the human operator as physically present again from any session, persist the AFKSwitch state, tell every other live local agent session, request a short status from each when the host supports it, and consolidate what needs the human first. Use only when the user explicitly invokes /back; never trigger it because a conversation mentions returning.
 disable-model-invocation: true
 ---
 
 # /back
 
-The user is back at the computer and available again. Presence belongs to the user, not
-to a terminal — so this works from **any** session, including one that never saw the
-`/afk`, and including one opened after it.
+The human operator is **physically present again**. Presence belongs to the human, so
+`/back` works from **any** session: one that never saw the `/afk`, one opened after it,
+or after the session that ran `/afk` was closed. No session owns the AFK state; never ask
+the human to find the terminal that ran `/afk`.
 
-## There is no owner of the AFK state
+**Returning is not approval.** Every permission and authorization boundary that applied
+before AFK still applies. Deferred steps may be reconsidered, not executed just because
+the human is back.
 
-The session that ran `/afk` is not special and does not need to be running. It may have
-been closed hours ago. Never require `/back` to run where `/afk` ran, and never tell the
-user to go find that terminal.
+## 1. Read, then persist the state
 
-## Procedure
-
-1. **Read** `~/.claude/session-presence/state.json` if it exists. When it
-   shows `status: "afk"`, take `mode`, `since` and `message` — that is how a session
-   that never saw the `/afk` can still report *what* the user was doing and *how long*
-   they were gone. Missing, empty or unparseable file → not an error; carry on without
-   the elapsed time.
-2. **Write** the state back as available:
+1. Read `~/.afkswitch/state.json` if it exists. If it is a valid `afk` state, keep its
+   `since` and `context`: that is how a session that never saw the `/afk` reports what
+   the human was doing and for how long. Missing, empty, or malformed → not an error;
+   report no duration.
+2. Write:
 
    ```json
-   { "status": "back", "mode": null, "since": "<local time now, ISO 8601>", "message": null }
+   { "version": 1, "status": "available", "since": "<local time now, ISO 8601 with offset>", "context": null }
    ```
 
-   **Idempotent.** Running `/back` twice, or with no `/afk` before it, must work
-   normally — overwrite and continue. Presence is not a fragile state machine.
-3. Get the **live sessions**: read "The rule" in `~/.claude/skills/live/SKILL.md` and apply
-   it exactly to one `ListAgents` call. Only live sessions are targets. Offline rows,
-   Remote Control rows, cloud sessions and other machines are never messaged or asked
-   for status. The call's first line names **this** session
-   (`This session is main-4e [de5abe]`) — that is the reply address, so read it now.
-4. No live sessions → state is still cleared; report `You're back. No other sessions reachable.`
-5. Send return-notice and status-request **as one message per session**, all calls in one
-   block. Pass `notify_when_idle: true`: it delivers now *and* subscribes to one native,
-   one-shot notice when that session next goes idle — how a silent session is told from
-   a slow one without any polling.
+`/back` is idempotent: repeating it, or running it with no prior `/afk`, works normally.
+If the host sandbox refuses the write, say so plainly.
 
-   ```
-   SendMessage({ to: "<name>", summary: "user back + status request",
-                 notify_when_idle: true, message: <body> })
-   ```
+## 2. Notify live sibling sessions and request status (Claude Code reference adapter)
 
-   Body, with `<this session>` replaced by the name from step 3:
+When the host exposes `ListAgents` and `SendMessage`:
 
-   ```
-   [User broadcast] The user is back at the computer and available again.
+1. Call `ListAgents` **once**. Its first line names this session (`This session is
+   <name> …`): that name is the reply address. The sender is never a target.
+2. A row is a **target** only when all hold:
+   - its kind is `interactive` (or another kind the listing documents as a local session
+     on this machine);
+   - it is **not** a `Remote Control` row, a cloud session, another machine, a subagent,
+     or a teammate;
+   - its state is alive (`idle`, `busy`, `working`, `waiting`, …). `offline`, `exited`,
+     `ended`, `stale`, or unclear → exclude. Never touch an excluded row.
+3. No targets → the state is still cleared; report it.
+4. Send the return notice and the status request **as one message per target**, all
+   calls in one block, with `notify_when_idle: true` (one native, one-shot notice when
+   that session next goes idle — how a silent session is told from a slow one without
+   polling):
 
-   That ends the AFK state. Nothing about your permissions changed while he was away,
-   and nothing changes now. You may reconsider steps you deferred for his absence —
-   but do not execute them just because he is back. The normal authorization rules
-   still apply, so if a step needs elevation, a credential or a decision, say so and
-   wait: "I need elevation to continue. Ready when you are."
+   `SendMessage({ to: "<name>", summary: "human back + status request", notify_when_idle: true, message: <body> })`
 
-   Give a concise status of the work performed and the current state. Send it to
-   "<this session>" with SendMessage at your next natural pause, under ~50 words, in
-   these lines and no narrative:
+5. **One copy per target per invocation.** Retry only a confirmed failure, at most once,
+   and say `retried once`. A failed target never cancels the others. A message **held
+   for approval** or **refused** is reported as such, not as delivered.
 
-   dir: <your working directory or repo>
-   needs-user: <anything blocked on authentication, password manager, a password/PIN/Hello,
-     UAC or elevation, MFA, a passkey, a login, a credential, a confirmation or a
-     human decision — with the resume command> (or none)
-   completed: ...
-   running: ...
-   other-blockers: <problems not needing him> (or none)
+### Message body
 
-   Nothing to report is a fine answer — say it in one line.
-   ```
+Replace `<this session>` with the name read in step 1.
 
-   The `dir:` line is the only way to label a session by project: `ListAgents` exposes
-   no working directory, so the session has to say it itself.
-6. **One copy per target per invocation.** Never re-send because a session is slow —
-   slowness is expected. Retry only after a confirmed send failure, at most once, noted
-   in the report.
-7. A failed target never cancels the run.
+```text
+[AFKSwitch] The human operator is back: physically present again. AFK has ended.
 
-## Bounded — never wait indefinitely
+Nothing about your permissions changed while they were away, and nothing changes now.
+You may reconsider steps you deferred, but do not execute them just because the human is
+back; normal authorization rules still apply. If a step needs a credential, elevation,
+or a decision, say so and wait.
 
-Replies are asynchronous, arriving as
-`<cross-session-message from="..." from-name="docs-3c">` whenever each session next
-reaches a tool call. Match replies by **`from-name`** and report that; `from` is a raw
-pipe path, needed only to send something back.
+At your next natural pause, reply to "<this session>" with SendMessage, under ~50 words,
+in exactly these lines (no narrative):
 
-Report the dispatch immediately, consolidate what has arrived, and close with a count.
-Fold in later replies as they land. Never poll `ListAgents` in a loop, never re-send,
-never send "are you done?", never hold the turn open waiting.
+dir: <your working directory or project>
+needs-human: <anything waiting on a decision, credential, login, elevation, passkey, MFA, local confirmation, or other human interaction, with the exact resume step> (or none)
+completed: <what finished while AFK> (or none)
+running: <what is still running> (or none)
+other-blockers: <problems that do not need the human> (or none)
 
-A session that has not answered is *unknown* — not unreachable, not agreeing, not dead.
-Say `no reply yet`.
+Nothing to report is a fine answer; say it in one line.
+```
+
+`ListAgents` does not expose working directories, so the `dir:` line is how each
+session is labelled by project.
+
+### Bounded — never wait indefinitely
+
+Report the dispatch immediately. Replies arrive asynchronously as cross-session messages
+whenever each session reaches its next tool round; fold them in as they land. Never poll
+`ListAgents`, never re-send, never send "are you done?", never hold the turn open.
+
+A session that has not replied is **no reply yet** — not failed, not dead, not agreeing,
+not finished.
+
+## 3. Hosts without native peer messaging
+
+Persist the state and say that cross-session notification and status collection are not
+available in this host. Add no infrastructure to emulate them.
 
 ## Report
 
-Immediately after dispatch, using the state file for the elapsed line when it was `afk`:
+Right after dispatch:
 
-```
-You're globally back. Status requested from 4 sessions.
-You were AFK (sleep) for 7h 12m · discovered 4 · delivered 4 · failed 0
-```
-
-Omit the elapsed line entirely when the state file gave nothing — never guess a
-duration.
-
-### The vault goes above everything
-
-`/back` is the one moment a human is guaranteed to be at the machine, which makes it the
-only safe moment to raise a credential prompt — avoiding one with nobody there is the
-whole point of the AFK policy. A locked vault is also the cheapest blocker to clear: one
-unlock typically releases every session at once.
-
-So when any session reports a vault- or credential-shaped blocker (password manager, a signing
-key, a password, a PIN or Hello check), open the report with one line naming what a
-single unlock releases, above every other section:
-
-```
-🔑 Unlock password manager now — re-arms the 24h signing window and releases the staged
-   commits in cli-2e, api-1f and web-7a
+```text
+You're back · AFK (<context from the saved state>) lasted <now − saved since> · discovered N · notified N · status requested from N
 ```
 
-**Do not attempt the unlock.** It needs his body, not a command. Never run a signing
-operation to force the prompt: on Windows each sub-shell needs its own authorization
-from the app, so a prompt raised from here authorizes a shell that is about to exit, and
-repeating that is the nine-PINs-in-one-response incident. A service-account helper does
-not substitute either — it bypasses the app by design and therefore cannot sign.
+Take the context and the duration **only** from the state file you read in step 1, never
+from this template or from memory. Write the duration exactly (for example `51s`,
+`7h 12m`). Omit the parenthesis when the saved context was `null`, and omit the whole
+duration when the prior state gave no valid `afk` `since`. Never guess either.
 
-**Do not act on the other sessions.** Do not tell them to retry and do not commit their
-staged work. One unlock re-arms the window; each session picks it up on its own next
-attempt.
+Then consolidate replies in this fixed order, dropping empty sections:
 
-Say nothing about the vault when no session reported that kind of blocker.
-
-### Consolidation
-
-Then consolidate in this fixed order. **`Needs you now` always comes first** — it is the
-only part that cannot proceed without him:
-
-```
-4/4 sessions responded
+```text
+2/3 sessions replied
 
 Needs you now
-  docs-3c — C:\work\billing
-    Supabase CLI authentication required before deploy. Code, tests and build
-    complete. Resume with: supabase login, then deploy.
-  api-1f — C:\work\api
-    Windows elevation required to restart the service. Ready when you are.
+  api — ~/work/api
+    Elevation required to restart the local service. Code and tests done.
+    Resume with: restart the service, then run the smoke test.
 
 Completed while AFK
-  web-7a — C:\work\scpe        tests and build complete
-  cli-2e — C:\work\locker   diagnostics complete
+  docs — ~/work/docs   site build and link check complete
 
 Still running
-  api-1f    RLS suite, ~10 min left
+  api   integration suite, ~10 min left
 
 Other blockers
-  web-7a    upstream API returning 503, retrying with backoff
+  docs  upstream API returning 503, retrying with backoff
 
 No reply yet
-  ops-9d    interactive · busy · started 7h ago
+  billing   interactive · busy
 ```
 
-`Needs you now` collects everything blocked on password manager, a password, PIN, Windows
-Hello, UAC or elevation, MFA, a passkey, a login, a credential, a confirmation, or a
-human decision. Each entry says where it stopped and how to resume.
-
-Drop empty sections entirely. Label each session by its reported `dir:`, falling back to
-the bare handle. Keep it compact: a couple of lines per session however much it wrote.
-Report what the sessions actually said — never soften a blocker into an approval, and
-never act on one.
+- **Needs you now comes first**: it is the only part that cannot proceed without the
+  human. When one human action releases several sessions (for example, a single unlock
+  or login), put it on the first line with the sessions it releases.
+- Never perform that action yourself and never trigger the prompt to "help": it needs the
+  human. Do not tell other sessions to retry or act on their blockers.
+- Label each session by its reported `dir:`, falling back to its name. Keep a couple of
+  lines per session. Report what sessions said; never soften a blocker into an approval.

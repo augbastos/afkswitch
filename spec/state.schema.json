@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/augbastos/afkswitch/blob/main/spec/state.schema.json",
+  "title": "AFKSwitch state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "status",
+    "since",
+    "context"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "afk"
+      ]
+    },
+    "since": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "context": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 2048
+    }
+  }
+}

@@ -1,0 +1,8 @@
+interface:
+  display_name: "Go AFK"
+  short_description: "Tell your coding agents that you are physically away."
+  default_prompt: "$afkswitch:afk"
+policy:
+  products:
+    - CODEX
+  allow_implicit_invocation: false

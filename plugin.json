@@ -1,0 +1,48 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "afkswitch",
+  "version": "0.4.0",
+  "description": "Tell AI agents when their human operator is physically away and when they are back.",
+  "author": {
+    "name": "Augusto Bastos",
+    "url": "https://github.com/augbastos"
+  },
+  "homepage": "https://github.com/augbastos/afkswitch",
+  "repository": "https://github.com/augbastos/afkswitch",
+  "license": "MIT",
+  "keywords": [
+    "ai-agents",
+    "presence",
+    "afk",
+    "codex",
+    "claude-code",
+    "agent-ux"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "AFKSwitch",
+        "shortDescription": "Tell agents when you're away",
+        "longDescription": "AFKSwitch gives AI coding agents an explicit signal for human physical presence. Invoke $afkswitch:afk when you leave and $afkswitch:back when you return. AFK means physically away, not unreachable, and presence is never permission: agents keep doing already-authorized work while steps that need you at the machine wait. In Codex, AFKSwitch keeps a durable local presence state; it does not claim delivery to other Codex sessions. No AFKSwitch backend, account, or telemetry.",
+        "developerName": "Augusto Bastos",
+        "category": "Productivity",
+        "capabilities": [
+          "Human presence state for coding agents",
+          "Explicit AFK and back commands"
+        ],
+        "websiteURL": "https://github.com/augbastos/afkswitch",
+        "privacyPolicyURL": "https://github.com/augbastos/afkswitch/blob/main/PRIVACY.md",
+        "termsOfServiceURL": "https://github.com/augbastos/afkswitch/blob/main/TERMS.md",
+        "defaultPrompt": [
+          "$afkswitch:afk",
+          "$afkswitch:afk sleep",
+          "$afkswitch:back"
+        ],
+        "supportURL": "https://github.com/augbastos/afkswitch/blob/main/SUPPORT.md",
+        "logo": "./assets/logo-light.svg",
+        "composerIcon": "./assets/logo-light.svg",
+        "brandColor": "#F28C28"
+      }
+    }
+  }
+}

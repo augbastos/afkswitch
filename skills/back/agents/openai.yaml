@@ -1,0 +1,8 @@
+interface:
+  display_name: "I'm Back"
+  short_description: "Tell your coding agents that you are physically present again."
+  default_prompt: "$afkswitch:back"
+policy:
+  products:
+    - CODEX
+  allow_implicit_invocation: false
