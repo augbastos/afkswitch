@@ -48,11 +48,13 @@ The operational policy is identical in every case. Only the emphasis line change
    refuse. Keep the *original* `since` when status and mode are unchanged, so the
    elapsed time stays true; reset it when the mode changes. If the file is missing,
    empty or unparseable, that is not an error: write a fresh one and carry on.
-2. Call `ListAgents`. Peer sessions only. This session is never listed, so the sender is
-   excluded automatically — it already knows.
-3. No peers → still write the state, then report `State set. No other sessions
+2. Get the **live sessions**: read "The rule" in `~/.claude/skills/live/SKILL.md` and apply
+   it exactly to one `ListAgents` call. Only live sessions are targets. Offline rows,
+   Remote Control rows, cloud sessions and other machines are never messaged. This
+   session is never listed, so the sender is excluded automatically — it already knows.
+3. No live sessions → still write the state, then report `State set. No other sessions
    reachable.` The global state is the durable part; the broadcast is best-effort.
-4. Send to every peer, all `SendMessage` calls in one block:
+4. Send to every live session, all `SendMessage` calls in one block:
 
    ```
    SendMessage({ to: "<name>", summary: "user AFK", message: <body below> })

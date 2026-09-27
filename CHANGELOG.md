@@ -4,6 +4,21 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-27
+
+### Added
+
+- `/live` lists only the live local sessions, as `name — status`. Its "The rule" section
+  is the single definition of a live session: a local Claude Code row (`interactive`),
+  in a running state, and never Remote Control, cloud, another machine, a subagent or
+  anything `offline`.
+
+### Changed
+
+- `/afk`, `/back` and `/broadcast` read and apply that rule instead of messaging every
+  `ListAgents` peer. Offline and stale Remote Control rows, including one that shares a
+  live session's name, are no longer targets. Nothing else in their behaviour changed.
+
 ## [0.1.2] - 2026-09-21
 
 ### Added

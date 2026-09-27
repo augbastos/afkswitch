@@ -31,9 +31,12 @@ user to go find that terminal.
 
    **Idempotent.** Running `/back` twice, or with no `/afk` before it, must work
    normally — overwrite and continue. Presence is not a fragile state machine.
-3. Call `ListAgents`. Peer sessions only. Its first line names **this** session
+3. Get the **live sessions**: read "The rule" in `~/.claude/skills/live/SKILL.md` and apply
+   it exactly to one `ListAgents` call. Only live sessions are targets. Offline rows,
+   Remote Control rows, cloud sessions and other machines are never messaged or asked
+   for status. The call's first line names **this** session
    (`This session is main-4e [de5abe]`) — that is the reply address, so read it now.
-4. No peers → state is still cleared; report `You're back. No other sessions reachable.`
+4. No live sessions → state is still cleared; report `You're back. No other sessions reachable.`
 5. Send return-notice and status-request **as one message per session**, all calls in one
    block. Pass `notify_when_idle: true`: it delivers now *and* subscribes to one native,
    one-shot notice when that session next goes idle — how a silent session is told from

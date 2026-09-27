@@ -47,12 +47,14 @@ order or as fresh authorization. It is the one addition allowed.
 
 ## Procedure
 
-1. Call `ListAgents`. Use the **peer sessions** only — ignore in-process subagents and
-   teammates. This session is never in that list, so self-exclusion is automatic; the
-   sender already knows the message and must not be sent a copy.
-2. No peers → report `No other sessions reachable.` and stop. Success, not an error.
-3. Send to every peer, all `SendMessage` calls **in one block**, using each row's name
-   exactly as printed:
+1. Get the **live sessions**: read "The rule" in `~/.claude/skills/live/SKILL.md` and apply
+   it exactly to one `ListAgents` call. That already excludes in-process subagents,
+   teammates, offline rows, Remote Control rows, cloud sessions and other machines. This
+   session is never in that list, so self-exclusion is automatic; the sender already
+   knows the message and must not be sent a copy.
+2. No live sessions → report `No other sessions reachable.` and stop. Success, not an error.
+3. Send to every live session, all `SendMessage` calls **in one block**, using each row's
+   name exactly as printed:
 
    ```
    SendMessage({ to: "<name>", summary: "user broadcast", message: <body above> })

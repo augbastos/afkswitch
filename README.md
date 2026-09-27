@@ -1,9 +1,9 @@
 # claude-session-presence
 
-Three tiny Claude Code skills that provide broadcast and human presence semantics on
+Four tiny Claude Code skills that provide broadcast and human presence semantics on
 top of native cross-session messaging.
 
-`/broadcast` · `/afk` · `/back`
+`/broadcast` · `/afk` · `/back` · `/live`
 
 ## Why this exists
 
@@ -24,6 +24,9 @@ what happened while you were gone. That is all this is.
 - `/afk sleep` — user is sleeping
 - `/afk work` — user is away at work
 - `/back` — user returned; collect what happened and what's waiting on them
+- `/live` — list only the live local sessions (`name — status`). Its rule is the one
+  definition of a live session that the other three apply before messaging anyone:
+  offline, Remote Control, cloud and other-machine rows are never messaged.
 
 > **While AFK, Claude continues safe autonomous work but defers anything that may
 > require authentication, elevation, credentials, or physical user interaction.**

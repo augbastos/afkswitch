@@ -1,11 +1,11 @@
-# Installs broadcast / afk / back as personal skills, so they answer to the bare
+# Installs broadcast / afk / back / live as personal skills, so they answer to the bare
 # /broadcast, /afk and /back in every Claude Code session on this machine.
 #
 #   pwsh -File install.ps1            # install or update
 #   pwsh -File install.ps1 -Uninstall # remove
 #
 # Copies, deliberately: a junction or symlink would need admin or Developer Mode, and
-# this is three markdown files.
+# this is four markdown files.
 
 param([switch]$Uninstall)
 
@@ -13,7 +13,7 @@ $ErrorActionPreference = 'Stop'
 
 $source = Join-Path $PSScriptRoot 'skills'
 $target = Join-Path $HOME '.claude/skills'
-$names  = @('broadcast', 'afk', 'back')
+$names  = @('broadcast', 'afk', 'back', 'live')
 
 foreach ($name in $names) {
     $dest = Join-Path $target $name
@@ -35,5 +35,5 @@ foreach ($name in $names) {
 
 if (-not $Uninstall) {
     ""
-    "Restart Claude Code (or /clear) to pick them up, then: /broadcast, /afk, /back"
+    "Restart Claude Code (or /clear) to pick them up, then: /broadcast, /afk, /back, /live"
 }
