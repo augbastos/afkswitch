@@ -1,7 +1,8 @@
 {
   "name": "afkswitch",
+  "displayName": "AFKSwitch",
   "description": "Tell Claude Code agents when their human operator is physically away and when they are back. Two explicit skills, /afk and /back; no hooks, daemon, server, or telemetry.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "author": {
     "name": "Augusto Bastos",
     "url": "https://github.com/augbastos"
@@ -11,6 +12,10 @@
     "./skills"
   ],
   "homepage": "https://github.com/augbastos/afkswitch",
+  "documentationUrl": "https://github.com/augbastos/afkswitch/blob/main/docs/details.md",
+  "supportUrl": "https://github.com/augbastos/afkswitch/blob/main/SUPPORT.md",
+  "privacyPolicyUrl": "https://github.com/augbastos/afkswitch/blob/main/PRIVACY.md",
+  "termsOfServiceUrl": "https://github.com/augbastos/afkswitch/blob/main/TERMS.md",
   "license": "MIT",
   "keywords": [
     "ai-agents",

@@ -47,6 +47,8 @@ if __name__ == "__main__":
     (out / "logo-dark.svg").write_text(svg("#EDEDED", "#1C1C1C"), encoding="utf-8")
     (out / "wordmark-light.svg").write_text(svg("#262626", None), encoding="utf-8")
     (out / "wordmark-dark.svg").write_text(svg("#EDEDED", None), encoding="utf-8")
+    # Claude Code reads the plugin icon from .claude-plugin/icon.svg (square, >= 128 px).
+    (ROOT / ".claude-plugin" / "icon.svg").write_text(svg("#262626", "#FFFFFF"), encoding="utf-8")
     # The switch and the word share exactly the same rows.
     rows = {y for (x, y) in pixels("#000") if x >= 19}
     assert rows == {y for (x, y) in pixels("#000") if x < 18} == set(range(TOP, TOP + 7))
