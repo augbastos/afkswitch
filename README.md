@@ -28,8 +28,10 @@ what happened while you were gone. That is all this is.
   definition of a live session that the other three apply before messaging anyone:
   offline, Remote Control, cloud and other-machine rows are never messaged.
 
-> **While AFK, Claude continues safe autonomous work but defers anything that may
-> require authentication, elevation, credentials, or physical user interaction.**
+> **AFK means you are physically away, not unreachable.** Sessions keep full progress,
+> ask you through Remote Control only for decisions that truly block, group the rest,
+> and defer only steps that need your body at the machine (authentication, elevation,
+> credentials, local QA). A physical blocker is never a mission blocker.
 
 ```
 Claude Code native session discovery + messaging
@@ -154,12 +156,18 @@ actions that could trigger authentication, elevation or interactive prompts.
 The operational policy is the same for every variant; only the emphasis changes. The
 rule, in one line:
 
-> **While AFK, Claude continues safe autonomous work but defers anything that may
-> require authentication, elevation, credentials, or physical user interaction.**
+> **AFK means you are physically away, not unreachable.** Sessions keep full progress,
+> ask you through Remote Control only for decisions that truly block, group the rest,
+> and defer only steps that need your body at the machine (authentication, elevation,
+> credentials, local QA). A physical blocker is never a mission blocker.
 
 Sessions are told to keep reading, analysing, coding, fixing, testing, reviewing,
-researching, documenting and running local work they are already authorized to do — and
-**not** to message you while you're gone; it keeps for `/back`.
+researching, documenting and running local work they are already authorized to do, at
+full speed and without touching Auto Mode, model, effort or permission mode. You may
+still answer from your phone: a question that truly blocks is asked once through
+Remote Control (without waiting on it); non-urgent ones are grouped; and anything that
+needs you physically at the machine waits for `/back`. Your messages during AFK are
+normal interaction and do not end it. Only `/back` does.
 
 What they defer: anything that could predictably raise an interactive prompt — a
 password manager or vault unlock, a Windows password / PIN / Hello / fingerprint / face check,

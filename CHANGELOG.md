@@ -4,6 +4,26 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-27
+
+### Changed
+
+- `/afk` now means only **physically away**: remote availability through Remote Control
+  stays possible, often intermittent. Sessions keep full progress and never depend on an
+  immediate answer. They classify what they need as REMOTE-BLOCKING (ask once through
+  Remote Control, don't wait), NON-URGENT (group, keep going) or PHYSICAL-BLOCKING (only
+  that sub-step waits for `/back`). The old instruction "do not message him while he is
+  gone" is gone.
+- `/afk` never changes Auto Mode, the permission mode, the model, effort or fast mode.
+  A message from the user during AFK is normal interaction and does not end it; only
+  `/back` does.
+- The state file gains `physical_presence`, `remote_presence`, `current_context` and
+  `expected_physical_return` (an estimate for planning, with its source). The control
+  may fill them from the work roster, read-only and only with what the work-roster tool reports.
+  The user's own estimate outranks an inferred one.
+- `/afk work` reads as intermittently reachable instead of "may take several hours to
+  answer".
+
 ## [0.2.0] - 2026-09-27
 
 ### Added
