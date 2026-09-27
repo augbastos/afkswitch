@@ -1,6 +1,6 @@
 ---
 name: live
-description: Lists only the LIVE operational Claude Code sessions on this machine, as "name — status". Also the single canonical definition of a live session that /afk, /back and /broadcast apply before messaging anyone. Trigger: /live, "which sessions are live".
+description: Lists only the LIVE operational Claude Code sessions on this machine, as "name — status"; `/live power` shows each one's model | effort | fast mode, UNKNOWN when unconfirmed. Also the single canonical definition of a live session that /afk, /back and /broadcast apply before messaging anyone. Trigger: /live, "which sessions are live".
 ---
 
 # /live
@@ -49,4 +49,28 @@ exactly as it is.
      verbatim.
 3. No live sessions → print `No live sessions.`
 4. Do not list the excluded rows, do not explain them, and do not message anyone.
-   `/live` is read-only.
+   Plain `/live` is read-only; only `/live power` sends a question.
+
+## `/live power` — current session power
+
+Answers "what model / effort / fast mode is each live session on?":
+
+1. Take the live sessions from the rule above.
+2. For **this** session, report only what it can confirm locally: the model from its own
+   context, effort and fast mode from the harness or status line. Anything it cannot
+   confirm is `UNKNOWN`.
+3. Ask each live session once, in one block:
+   `SendMessage({to: "<name>", summary: "power status", message: "[From <this session>] Reply to <this session> with one line, only what you can confirm locally (never infer): model | effort | fast on/off. Unconfirmed value = UNKNOWN."})`
+4. Print what has arrived, and mark every row that has not answered, or any value it
+   could not confirm, as `UNKNOWN`:
+
+   ```
+   CURRENT SESSION POWER
+   wavr      opus-5-5 | high    | fast off
+   guardian  opus-5-5 | medium  | fast off
+   luckycat  UNKNOWN  | UNKNOWN | UNKNOWN   (no reply yet)
+   control   opus-5-5 | medium  | fast off
+   ```
+
+   Fold in later replies as they land. Never re-send, never poll, and never fill a value
+   in from memory or from what was requested.

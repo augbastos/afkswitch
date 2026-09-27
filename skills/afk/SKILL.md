@@ -33,10 +33,37 @@ stopped. **Nobody depends on an immediate answer from him.**
 - **A message from him through Remote Control during AFK is normal interaction.** It
   does not trigger `/back`, does not end AFK and does not by itself change his expected
   return. It only proves he is reachable right now. **Only `/back` ends AFK.**
-- **`/afk` never touches the session's power.** It does not switch Auto Mode, the
-  permission mode, the model, effort or fast mode, and it changes no other session
-  setting. Everything stays exactly as it was.
+- **Running `/afk` changes no session setting by itself.** It does not switch Auto
+  Mode or the permission mode, and it does not touch model, effort or fast mode.
+- **Model, effort and fast mode MAY change during AFK** when he asks for it (Remote
+  Control included), when an already-authorised rule allows it, or for a valid
+  operational reason. The danger to avoid is **state ambiguity**, so every change
+  follows "Session power changes" below. Auto Mode and the permission mode stay as they
+  are.
 - Remote Control must stay available: assume he can appear and interact at any moment.
+
+## Session power changes (model, effort, fast mode)
+
+Applies whenever one of them changes during AFK, in any session:
+
+1. Apply the change.
+2. Confirm the **real** state of the session afterwards: read it from the local session
+   (the status line, the command's own confirmation, or the session's reported model),
+   not from the phone UI. A command that was sent is not a change that happened.
+3. Report it short and explicit, before/after:
+
+   ```
+   model:  opus-5-5 → opus-5-5
+   effort: medium → high
+   fast:   off
+   ```
+
+4. If what was asked differs from what the session shows, say so plainly and keep the
+   **known** state as the truth. Never pretend it worked.
+5. A value you cannot confirm is `UNKNOWN`. Never infer it.
+
+The control answers "what power is every session on?" with `/live power` (see
+`~/.claude/skills/live/SKILL.md`).
 
 ## Variants
 
@@ -88,8 +115,8 @@ The operational policy is identical in every case. Only the emphasis line change
    arrival time or availability that the work-roster tool did not give. Commuting, delays and overtime
    happen. the work-roster tool unavailable → leave the fields `unknown`/`null` and carry on. Other
    sessions never query the work-roster tool; they receive only the summary line below.
-   **Do not change any session setting** (Auto Mode, permission mode, model, effort, fast
-   mode) as part of `/afk`.
+   **`/afk` itself changes no session setting** (Auto Mode, permission mode, model,
+   effort, fast mode).
 
    **Idempotent.** Already `afk`? Overwrite it anyway and re-broadcast — running
    `/afk sleep` twice, from the same terminal or a different one, must never break or
@@ -122,9 +149,12 @@ Open with the variant line, then the policy:
 
 Physical presence: unavailable. Remote availability: possible but intermittent and never
 guaranteed; he may answer from his phone through Remote Control. Keep full progress: do
-not slow down, stop, or become more conservative, and do not change Auto Mode, the
-permission mode, model, effort or fast mode. Never depend on an immediate answer. A
-message from him during AFK is normal interaction and does NOT end AFK; only /back does.
+not slow down, stop, or become more conservative. Auto Mode and the permission mode stay
+as they are. Model, effort and fast mode may change when he asks, when an authorised
+rule allows it or for a valid operational reason; after any change, confirm the REAL
+state and report "model: a → b / effort: a → b / fast: on|off", flag any mismatch, and
+say UNKNOWN when you cannot confirm. Never depend on an immediate answer. A message from
+him during AFK is normal interaction and does NOT end AFK; only /back does.
 
 Classify anything you need from him:
 1. REMOTE-BLOCKING: a decision you truly need now that he can make from a phone. Ask it

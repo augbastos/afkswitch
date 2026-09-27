@@ -14,7 +14,11 @@ All notable changes to this project are documented here. Format follows
   Remote Control, don't wait), NON-URGENT (group, keep going) or PHYSICAL-BLOCKING (only
   that sub-step waits for `/back`). The old instruction "do not message him while he is
   gone" is gone.
-- `/afk` never changes Auto Mode, the permission mode, the model, effort or fast mode.
+- Running `/afk` changes no session setting. Model, effort and fast mode may change
+  during AFK (on request, by an authorised rule or for an operational reason), but each
+  change is confirmed against the session's real state and reported before → after; a
+  mismatch is flagged and an unconfirmed value is `UNKNOWN`. New `/live power` prints
+  every live session's model | effort | fast mode. Auto Mode and permission mode stay.
   A message from the user during AFK is normal interaction and does not end it; only
   `/back` does.
 - The state file gains `physical_presence`, `remote_presence`, `current_context` and

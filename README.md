@@ -163,7 +163,9 @@ rule, in one line:
 
 Sessions are told to keep reading, analysing, coding, fixing, testing, reviewing,
 researching, documenting and running local work they are already authorized to do, at
-full speed and without touching Auto Mode, model, effort or permission mode. You may
+full speed. `/afk` itself changes no setting; model, effort or fast mode may change
+during AFK, but every change is confirmed against the real session state (UNKNOWN when
+it can't be), and `/live power` shows each session's power. You may
 still answer from your phone: a question that truly blocks is asked once through
 Remote Control (without waiting on it); non-urgent ones are grouped; and anything that
 needs you physically at the machine waits for `/back`. Your messages during AFK are
