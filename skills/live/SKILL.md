@@ -1,6 +1,6 @@
 ---
 name: live
-description: Lists only the LIVE operational Claude Code sessions on this machine, as "name — status"; `/live power` shows each one's model | effort | fast mode, UNKNOWN when unconfirmed. Also the single canonical definition of a live session that /afk, /back and /broadcast apply before messaging anyone. Trigger: /live, "which sessions are live".
+description: "List live local Claude Code sessions, excluding offline or stale Remote Control entries. Canonical session source for /afk, /back and /broadcast."
 ---
 
 # /live
