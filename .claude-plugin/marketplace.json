@@ -1,5 +1,4 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "afkswitch",
   "description": "AFKSwitch — tell your AI agents when you're away and when you're back.",
   "owner": {

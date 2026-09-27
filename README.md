@@ -10,26 +10,39 @@
 /back    I'm here again
 ```
 
-Type `/afk` in one Claude Code session and every open session on your machine knows. They keep
-working, set aside only what truly needs you, and never treat your absence as permission.
-Type `/back` in any session and you get one summary: what needs you first, then what got
-done.
+Type `/afk` in one Claude Code session and every live Claude Code session on your machine is
+told. They keep working, set aside only what truly needs you, and are told never to treat your
+absence as permission. Type `/back` in any session and you get one summary: what needs you
+first, then what got done.
 
 ## Install
 
-**Claude Code**
+### Claude Code
+
+Install directly from this GitHub repository:
 
 ```text
-/plugin marketplace add augbastos/afkswitch
+/plugin marketplace add https://github.com/augbastos/afkswitch
 /plugin install afkswitch@afkswitch
 ```
 
-**Codex** (use `$afkswitch:afk` and `$afkswitch:back`)
+That first command is how Claude Code adds a plugin source; here the source is this
+repository.
+
+Then use `/afk` and `/back`.
+
+### Codex
+
+Install directly from this GitHub repository:
 
 ```text
-codex plugin marketplace add augbastos/afkswitch
+codex plugin marketplace add https://github.com/augbastos/afkswitch
 codex plugin add afkswitch@afkswitch
 ```
+
+Codex uses the same mechanism: the plugin source is this repository.
+
+Then use `$afkswitch:afk` and `$afkswitch:back`.
 
 ## Three rules
 
@@ -55,8 +68,8 @@ No reply yet
 
 | Host | What you get |
 |---|---|
-| Claude Code | Everything: every session is told, and `/back` collects a status from each. |
-| Codex | Your presence is saved (once `~/.afkswitch` is writable, see [details](docs/details.md#codex-sandbox)); Codex cannot message its other sessions, so they are not told. |
+| Claude Code | Every live session is told, and `/back` collects a status from each. |
+| Codex | Your presence is saved (once `~/.afkswitch` is writable, see [details](docs/details.md#codex-sandbox)). Codex cannot message its other sessions, so they are not told. |
 
 ## What AFKSwitch reads, writes, and sends
 
