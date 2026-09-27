@@ -17,6 +17,24 @@ AFKSwitch 0.4.0 is the first model-agnostic release of the project that began as
 - No AFKSwitch server, account, telemetry, daemon, database, hook, or polling loop.
 - MIT licensed.
 
+## Install
+
+Directly from this GitHub repository.
+
+Claude Code, then `/afk` and `/back`:
+
+```text
+/plugin marketplace add https://github.com/augbastos/afkswitch
+/plugin install afkswitch@afkswitch
+```
+
+Codex, then `$afkswitch:afk` and `$afkswitch:back`:
+
+```text
+codex plugin marketplace add https://github.com/augbastos/afkswitch
+codex plugin add afkswitch@afkswitch
+```
+
 ## Philosophy
 
 AFK means the human is physically away. It does **not** mean unreachable, unrestricted
