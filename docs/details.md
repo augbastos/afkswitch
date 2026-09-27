@@ -33,6 +33,8 @@ A session that has not answered `/back` is *no reply yet* — never "done", "fai
 | OpenAI Codex | **State-only** | Explicit `$afkswitch:afk` / `$afkswitch:back` and the same durable state. Codex gives the model no tool to message other Codex sessions, so AFKSwitch does not claim cross-session delivery there. |
 | Other hosts | **Contract only** | [`spec/presence.md`](../spec/presence.md) + [`spec/state.schema.json`](../spec/state.schema.json). |
 
+Tested with Claude Code 2.1.283 and codex-cli 0.156.1.
+
 Levels, as defined in the spec: **state-only** (durable state), **notify** (+ peer
 notification), **fan-in** (+ status collection on return).
 

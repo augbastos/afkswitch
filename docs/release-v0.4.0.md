@@ -25,7 +25,10 @@ autonomy, or new permission. A physically blocked step waits; independent work c
 ## Known limitations
 
 - Sessions started after `/afk` are not notified (that would need a startup hook).
-- Codex has no model-side cross-session messaging, so AFKSwitch there is state-only.
+- Codex has no model-side cross-session messaging, so AFKSwitch there is state-only. Saving
+  the state needs `~/.afkswitch` as a writable root (and, on Windows, a configured Codex
+  sandbox); see `docs/details.md`.
+- Tested with Claude Code 2.1.283 and codex-cli 0.156.1.
 
 ## History
 

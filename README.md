@@ -56,7 +56,7 @@ No reply yet
 | Host | What you get |
 |---|---|
 | Claude Code | Everything: every session is told, and `/back` collects a status from each. |
-| Codex | Your presence is saved; Codex cannot message its other sessions, so they are not told. |
+| Codex | Your presence is saved (once `~/.afkswitch` is writable, see [details](docs/details.md#codex-sandbox)); Codex cannot message its other sessions, so they are not told. |
 
 ## What AFKSwitch reads, writes, and sends
 

@@ -145,8 +145,7 @@ working on unrelated projects.
   mid-run. Three independent sessions each hit it, and each **staged the work and
   stopped** rather than raising a vault-unlock prompt on a sleeping user's machine.
   None bypassed signing. That is precisely the behaviour `/afk sleep` exists to produce,
-  and it was exercised by accident rather than by design — the strongest evidence
-  available that the policy transmits intact.
+  and it was exercised by accident rather than by design, which is evidence that the policy transmits intact.
 - No hooks, daemon, watcher or polling loop were involved at any point.
 
 ### Validated only partially
