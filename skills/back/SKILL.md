@@ -15,20 +15,33 @@ the human to find the terminal that ran `/afk`.
 before AFK still applies. Deferred steps may be reconsidered, not executed just because
 the human is back.
 
-## 1. Read, then persist the state
+## 1. Persist the state (before anything else)
 
-1. Read `~/.afkswitch/state.json` if it exists. If it is a valid `afk` state, keep its
-   `since` and `context`: that is how a session that never saw the `/afk` reports what
-   the human was doing and for how long. Missing, empty, or malformed → not an error;
-   report no duration.
-2. Write:
+The state lives in `~/.afkswitch/state.json` and is written **only** by the bundled
+helper `scripts/afkswitch_state.py`, next to this `SKILL.md` (the host shows this
+skill's base directory). Never read or write the file by hand for this step.
 
-   ```json
-   { "version": 1, "status": "available", "since": "<local time now, ISO 8601 with offset>", "context": null }
-   ```
+Run it once, with Python 3.9+ (`python3`; on Windows `python` or `py -3`):
 
-`/back` is idempotent: repeating it, or running it with no prior `/afk`, works normally.
-If the host sandbox refuses the write, say so plainly.
+```text
+python3 "<this skill's directory>/scripts/afkswitch_state.py" back
+```
+
+It prints one JSON line. Use only its fields in what follows:
+
+- `"ok": true` → the state is saved. Keep `generation` (G), `previous`, `afk_lasted`,
+  `changed`, `reset`, `migrated`, and `backup`. `previous` is what was saved before this
+  `/back` (`null` if nothing valid was): that is how a session that never saw the `/afk`
+  reports what the human was doing and for how long.
+- `"ok": false` → **stop here.** Report `Not marked back · <message>` using the helper's
+  `message` verbatim (for example `state transition failed: ...` or
+  `unsupported state version 3`). Notify nobody and request no status.
+- No Python 3.9+ found, or the helper file is missing → report
+  `Not marked back · state helper unavailable (python not found)` (or the missing file),
+  notify nobody, and do not write the file yourself.
+
+`/back` is idempotent: repeating it, or running it with no prior `/afk`, works normally
+(`"changed": false` keeps `since` and `generation`).
 
 ## 2. Notify live sibling sessions and request status (Claude Code reference adapter)
 
@@ -49,7 +62,7 @@ When the host exposes `ListAgents` and `SendMessage`:
    that session next goes idle — how a silent session is told from a slow one without
    polling):
 
-   `SendMessage({ to: "<name>", summary: "human back + status request", notify_when_idle: true, message: <body> })`
+   `SendMessage({ to: "<name>", summary: "human back g<G> + status request", notify_when_idle: true, message: <body> })`
 
 5. **One copy per target per invocation.** Retry only a confirmed failure, at most once,
    and say `retried once`. A failed target never cancels the others. A message **held
@@ -57,10 +70,16 @@ When the host exposes `ListAgents` and `SendMessage`:
 
 ### Message body
 
-Replace `<this session>` with the name read in step 1.
+Replace `<this session>` with the name read from `ListAgents` and `<G>` with the
+generation from step 1; write `[AFKSwitch g<G> reset]` in the first line only when the
+helper returned `"reset": true`.
 
 ```text
-[AFKSwitch] The human operator is back: physically present again. AFK has ended.
+[AFKSwitch g<G>] The human operator is back: physically present again. AFK has ended.
+
+Presence generation <G>. If you have already seen an AFKSwitch message with a higher
+generation, this one is stale: ignore it and do not reply. The same generation again is a
+repeat of the notice, but still answer this status request. When unsure, the "generation" in ~/.afkswitch/state.json is the truth.
 
 Nothing about your permissions changed while they were away, and nothing changes now.
 You may reconsider steps you deferred, but do not execute them just because the human is
@@ -70,6 +89,7 @@ or a decision, say so and wait.
 At your next natural pause, reply to "<this session>" with SendMessage, under ~50 words,
 in exactly these lines (no narrative):
 
+afkswitch-status g<G>
 dir: <your working directory or project>
 needs-human: <anything waiting on a decision, credential, login, elevation, passkey, MFA, local confirmation, or other human interaction, with the exact resume step> (or none)
 completed: <what finished while AFK> (or none)
@@ -91,23 +111,32 @@ whenever each session reaches its next tool round; fold them in as they land. Ne
 A session that has not replied is **no reply yet** — not failed, not dead, not agreeing,
 not finished.
 
+Count a reply only when it comes from a session this `/back` asked and starts with
+`afkswitch-status g<G>` for this G. A reply naming an older generation answers an earlier
+`/back`: show it under `Late replies (earlier /back)`, never in the tally. When two
+sessions share a name, keep them apart by the ` [ref]` you sent to.
+
 ## 3. Hosts without native peer messaging
 
-Persist the state and say that cross-session notification and status collection are not
-available in this host. Add no infrastructure to emulate them.
+Persist the state (step 1) and say that cross-session notification and status collection
+are not available in this host:
+`You're back · AFK (<context>) lasted <afk_lasted> · g<G> · state saved · cross-session notification not available in this host`. Add no infrastructure to emulate them.
 
 ## Report
 
 Right after dispatch:
 
 ```text
-You're back · AFK (<context from the saved state>) lasted <now − saved since> · discovered N · notified N · status requested from N
+You're back · AFK (<previous.context>) lasted <afk_lasted> · g<G> · discovered N · notified N · status requested from N
 ```
 
-Take the context and the duration **only** from the state file you read in step 1, never
-from this template or from memory. Write the duration exactly (for example `51s`,
-`7h 12m`). Omit the parenthesis when the saved context was `null`, and omit the whole
-duration when the prior state gave no valid `afk` `since`. Never guess either.
+Take the context and the duration **only** from the helper's `previous.context` and
+`afk_lasted`, never from this template or from memory. Omit the parenthesis when the
+saved context was `null`, and omit the whole `AFK … lasted …` part when `afk_lasted` is
+`null` (nothing valid was AFK). Write `Already back` instead of `You're back` when
+`previous.status` was `available`, `g<G> reset` when `"reset": true`, and add one line each
+when they apply: `state migrated from version 1` (`"migrated": true`) and
+`previous state file was unreadable; kept a copy at <backup>` (`backup` not null).
 
 Then consolidate replies in this fixed order, dropping empty sections:
 

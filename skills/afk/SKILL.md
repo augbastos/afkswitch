@@ -37,20 +37,41 @@ adapter; any other text is passed through as `Context:`.
 | `/afk work` | The human is at work: reachable remotely only intermittently, often on breaks. |
 | `/afk <text>` | `Context: <text>` |
 
-## 1. Persist the state
+## 1. Persist the state (before anything else)
 
-Write `~/.afkswitch/state.json` (create the directory if missing):
+The state lives in `~/.afkswitch/state.json` and is written **only** by the bundled
+helper `scripts/afkswitch_state.py`, next to this `SKILL.md` (the host shows this
+skill's base directory). Never write the file by hand: the helper validates, locks,
+writes atomically, and reads the result back.
 
-```json
-{ "version": 1, "status": "afk", "since": "<local time now, ISO 8601 with offset>", "context": "<verbatim context or null>" }
+Run it once, with Python 3.9+ (`python3`; on Windows `python` or `py -3`):
+
+```text
+python3 "<this skill's directory>/scripts/afkswitch_state.py" afk
+python3 "<this skill's directory>/scripts/afkswitch_state.py" afk --context '<verbatim context>'
 ```
 
-- Already `afk` with the **same** context → keep the original `since`, so elapsed time
-  stays true. Different context → new `since`.
-- Missing, empty, or malformed file → not an error; write a fresh valid state.
-- The state is the durable part. It does not depend on this session staying open.
-- If the host sandbox refuses the write, say so plainly in the report; never claim the
-  state was saved.
+Pass the context exactly as typed, as one literal argument: in POSIX shells inside single
+quotes, writing each `'` as `'\''`; in PowerShell inside single quotes, doubling each `'`.
+Multi-line or hard-to-quote text may go on standard input instead, with `--context-stdin`
+and a quoted heredoc (`<<'AFKSWITCH_EOF'`) or a PowerShell literal here-string.
+
+It prints one JSON line. Use only its fields in what follows:
+
+- `"ok": true` → the state is saved. Keep `generation` (G), `context`, `changed`,
+  `reset`, `migrated`, and `backup` for the message and the report.
+- `"ok": false` → **stop here.** Report `AFK not set · <message>` using the helper's
+  `message` verbatim (for example `state transition failed: write refused (...)`,
+  `unsupported state version 3`, or the context-length message). Notify nobody.
+- No Python 3.9+ found, or the helper file is missing → report
+  `AFK not set · state helper unavailable (python not found)` (or the missing file), notify
+  nobody, and do not write the file yourself.
+- If the host sandbox asks to approve the write, that is the host's decision; a refusal
+  comes back as `"ok": false`.
+
+The helper keeps the original `since` and `generation` when AFK is already set with the
+same context (`"changed": false`), keeps a malformed file as `state.json.corrupt-<time>`
+before replacing it, and migrates a version 1 file automatically.
 
 ## 2. Notify live sibling sessions (Claude Code reference adapter)
 
@@ -67,7 +88,7 @@ When the host exposes `ListAgents` and `SendMessage`:
      `ended`, `stale`, or unclear → exclude. Never touch an excluded row.
 3. No targets → the state is still set; report it.
 4. Send one message per target, all calls in one block:
-   `SendMessage({ to: "<name>", summary: "human AFK", message: <body> })`.
+   `SendMessage({ to: "<name>", summary: "human AFK g<G>", message: <body> })`.
    Use the bare name; add the ` [ref]` only when two rows share a name.
 5. **One copy per target per invocation.** Retry only a confirmed failure, at most once,
    and say `retried once`. Never re-send on slowness or ambiguity.
@@ -78,9 +99,16 @@ When the host exposes `ListAgents` and `SendMessage`:
 
 ### Message body
 
+The first line carries the generation G from step 1; write `[AFKSwitch g<G> reset]`
+instead only when the helper returned `"reset": true`:
+
 ```text
-[AFKSwitch] The human operator is AFK: physically away from the machine.
+[AFKSwitch g<G>] The human operator is AFK: physically away from the machine.
 <emphasis line for the invocation>
+
+Presence generation <G>. If you have already seen an AFKSwitch message with a higher
+generation, this one is stale: ignore it. The same generation again is a repeat. When
+unsure, the "generation" in ~/.afkswitch/state.json is the truth.
 
 AFK means physically away, not unreachable, and it is not permission. Keep full progress
 on work you were already authorized to do: do not stop, slow down, or become more
@@ -110,8 +138,8 @@ Only /back ends it.
 
 ## 3. Hosts without native peer messaging
 
-Persist the state and say that cross-session notification is not available in this host.
-Never add a daemon, server, database, polling loop, hook, or external service to emulate
+Persist the state (step 1) and say that cross-session notification is not available in
+this host. Never add a daemon, server, database, polling loop, hook, or external service to emulate
 it, and never imply another session was told.
 
 ## Report
@@ -119,7 +147,7 @@ it, and never imply another session was told.
 Never imply that a session knows the human is away when delivery was not confirmed.
 
 ```text
-AFK set (<context you just saved>) · discovered N · notified N · not notified N
+AFK set (<context the helper returned>) · g<G> · discovered N · notified N · not notified N
 
 Notified:
 ✓ <name>   <kind> · <state>
@@ -129,10 +157,13 @@ Not notified — these do NOT know you are away:
 ```
 
 Fill every field from what actually happened in this run; omit the parenthesis when the
-context is `null`.
+context is `null`. Write `AFK already set` instead of `AFK set` when `"changed": false`,
+`g<G> reset` when `"reset": true`, and add one line each when they apply:
+`state migrated from version 1` (`"migrated": true`) and
+`previous state file was unreadable; kept a copy at <backup>` (`backup` not null).
 
 Drop empty sections. In a host without peer messaging:
-`AFK set · state saved · cross-session notification not available in this host`.
+`AFK set (<context>) · g<G> · state saved · cross-session notification not available in this host`.
 
 Sessions started after this `/afk`, or not reached now, are not notified; the saved state
 still lets any session's `/back` report the absence.
