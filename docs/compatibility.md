@@ -10,7 +10,7 @@ assumed. The support levels themselves are in
 |---|---|---|---|---|
 | Claude Code | 2.1.284 | Linux cloud container, no login | `claude plugin validate --strict .`; `claude plugin marketplace add <repo>` + `claude plugin install afkswitch@afkswitch`; the state helper and the `/back` shim run from the installed plugin cache | passed; both helper files present in the cache and ran |
 | Codex CLI | 0.159.0 | Linux cloud container, no login | `codex plugin marketplace add <repo>` + `codex plugin add afkswitch@afkswitch` + `codex plugin list`; the state helper and the shim run from the installed plugin cache | passed; both helper files present in the cache and ran |
-| Python | 3.9, 3.13 | GitHub Actions: Linux, Windows, macOS | `scripts/validate.py`, `scripts/package.py`, `python -m pytest conformance` | pending: the pull request CI run |
+| Python | 3.9, 3.13 | GitHub Actions: Linux, Windows, macOS | `scripts/validate.py`, `scripts/package.py`, `python -m pytest conformance` | passed on the pull request CI (all jobs green) |
 
 **Full host validation of 0.5.0 is pending a local host run**: a real Claude Code fleet
 (`/afk`, `/back`, notify, fan-in, stale generations, persistence failure before notify,
