@@ -15,6 +15,10 @@ The project intentionally avoids:
 - telemetry;
 - automatic destructive actions.
 
+The only code AFKSwitch runs is `skills/afk/scripts/afkswitch_state.py`, a standard-library
+Python script that runs when you type `/afk` or `/back`, reads and writes only the
+`~/.afkswitch` folder, opens no network connection, starts no process, and exits.
+
 ## Security model
 
 `/afk` and `/back` must never be interpreted as authorization for a deploy, merge, publication, purchase, destructive operation, production change, credential use, or elevation that otherwise required approval.
