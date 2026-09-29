@@ -197,4 +197,8 @@ Documentation must state the level actually supported by each host. The canonica
 adapter is in [`adapters/README.md`](../adapters/README.md).
 
 <!-- capabilities:spec:start -->
+| Host | Level |
+|---|---|
+| Claude Code (reference) | Fan-in via native `ListAgents` + `SendMessage` + `notify_when_idle` |
+| OpenAI Codex | State-only |
 <!-- capabilities:spec:end -->

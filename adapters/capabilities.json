@@ -1,0 +1,28 @@
+{
+  "description": "Canonical AFKSwitch support matrix. scripts/validate.py renders it into the README, docs/details.md and spec/presence.md (python scripts/validate.py --write) and fails when they drift.",
+  "levels": {
+    "state-only": "Durable local presence state through the state protocol.",
+    "notify": "State-only, plus telling live peer sessions through a native host mechanism, with honest delivery reporting.",
+    "fan-in": "Notify, plus requesting and consolidating a status from each peer on /back, human blockers first."
+  },
+  "hosts": [
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "level": "fan-in",
+      "reference": true,
+      "invoke": ["/afk", "/back"],
+      "native": ["ListAgents", "SendMessage", "notify_when_idle"],
+      "summary": "Every live local session that the host confirms delivery to is told, and /back collects a status from each."
+    },
+    {
+      "id": "codex",
+      "name": "OpenAI Codex",
+      "level": "state-only",
+      "reference": false,
+      "invoke": ["$afkswitch:afk", "$afkswitch:back"],
+      "native": [],
+      "summary": "Your presence is saved. Codex gives the model no tool to message its other sessions, so they are not told."
+    }
+  ]
+}
