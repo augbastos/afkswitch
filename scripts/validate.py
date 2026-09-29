@@ -94,6 +94,13 @@ for name in skill_dirs:
         fail(f"skills/{name}/SKILL.md must be explicit-only (disable-model-invocation: true)")
     if "~/.afkswitch/state.json" not in text:
         fail(f"skills/{name}/SKILL.md does not use the AFKSwitch state path")
+    # Codex truncates a skill's main prompt at 8,000 bytes; measure with CRLF, as a Windows
+    # checkout would deliver it, and keep a margin.
+    size = len(text.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8"))
+    if size > 7800:
+        fail(f"skills/{name}/SKILL.md is {size} bytes with CRLF; Codex truncates skills at 8000")
+    if not (skill_root / name / "references" / "message.md").is_file():
+        fail(f"skills/{name}/references/message.md (the peer message body) is missing")
     otext = (skill_root / name / "agents" / "openai.yaml").read_text(encoding="utf-8")
     if "CODEX" not in otext or "allow_implicit_invocation: false" not in otext:
         fail(f"skills/{name}/agents/openai.yaml must be explicit-invocation CODEX metadata")
