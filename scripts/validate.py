@@ -1,13 +1,18 @@
+"""Validate the repository; `--write` first renders adapters/capabilities.json into the docs."""
 from __future__ import annotations
 
+import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+WRITE = "--write" in sys.argv[1:]
 
 
 def load_json(path: str):
@@ -36,8 +41,9 @@ if len(entries) != 1 or entries[0].get("name") != "afkswitch":
     fail("Claude marketplace must expose exactly one AFKSwitch plugin")
 if not (claude.get("version") == entries[0].get("version") == version):
     fail("plugin/marketplace versions differ")
-if f"## [{version}]" not in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"):
-    fail(f"CHANGELOG.md has no [{version}] section")
+changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+if f"## [{version}]" not in changelog and f"## [Unreleased] ({version})" not in changelog:
+    fail(f"CHANGELOG.md has no [{version}] or [Unreleased] ({version}) section")
 
 # Codex CLIs that predate the portable manifest load .codex-plugin/plugin.json; keep it in step.
 legacy = load_json(".codex-plugin/plugin.json")
@@ -92,10 +98,137 @@ for name in skill_dirs:
     if "CODEX" not in otext or "allow_implicit_invocation: false" not in otext:
         fail(f"skills/{name}/agents/openai.yaml must be explicit-invocation CODEX metadata")
 
-if schema.get("properties", {}).get("status", {}).get("enum") != ["available", "afk"]:
+# State protocol v2: the schemas, the helper, and the skills agree.
+schema_v1 = load_json("spec/state.v1.schema.json")
+props = schema.get("properties", {})
+if props.get("status", {}).get("enum") != ["available", "afk"]:
     fail("state schema status enum changed unexpectedly")
-if schema.get("properties", {}).get("version", {}).get("const") != 1:
-    fail("state schema version must remain 1 for this release")
+if props.get("version", {}).get("const") != 2:
+    fail("state schema version must be 2")
+if schema.get("required") != ["version", "status", "since", "context", "generation"]:
+    fail("state schema must require version, status, since, context, generation")
+if schema_v1.get("properties", {}).get("version", {}).get("const") != 1:
+    fail("spec/state.v1.schema.json must stay the version 1 schema")
+HELPER = ROOT / "skills" / "afk" / "scripts" / "afkswitch_state.py"
+SHIM = ROOT / "skills" / "back" / "scripts" / "afkswitch_state.py"
+for script in (HELPER, SHIM):
+    if not script.is_file():
+        fail(f"state helper missing: {script.relative_to(ROOT).as_posix()}")
+    try:
+        compile(script.read_text(encoding="utf-8"), str(script), "exec")
+    except SyntaxError as exc:
+        fail(f"{script.relative_to(ROOT).as_posix()} does not compile: {exc}")
+spec_ = importlib.util.spec_from_file_location("afkswitch_state_validate", HELPER)
+helper = importlib.util.module_from_spec(spec_)
+sys.dont_write_bytecode = True
+spec_.loader.exec_module(helper)
+if helper.STATE_VERSION != 2 or tuple(props["status"]["enum"]) != helper.STATUSES:
+    fail("helper and schema disagree on version or statuses")
+for label, doc in (("state.schema.json", schema), ("state.v1.schema.json", schema_v1)):
+    if doc["properties"]["context"].get("maxLength") != helper.MAX_CONTEXT:
+        fail(f"{label} context maxLength differs from the helper's limit")
+helper_text = HELPER.read_text(encoding="utf-8")
+if re.search(r"^\s*(import|from)\s+(?!(?:__future__|contextlib|datetime|json|os|pathlib|random|re|sys|time|uuid)\b)\S+",
+             helper_text, re.M):
+    fail("the state helper must import only the standard library modules it already uses")
+if re.search(r"socket|urllib|http\.client|subprocess|threading", helper_text):
+    fail("the state helper must not open sockets, start processes, or run threads")
+with tempfile.TemporaryDirectory() as tmp:
+    env = dict(os.environ, AFKSWITCH_STATE_DIR=str(Path(tmp) / ".afkswitch"))
+    runs = [([str(HELPER), "afk", "--context", "validate"], "afk"), ([str(SHIM), "back"], "available"),
+            ([str(HELPER), "read"], "available")]
+    for args, status in runs:
+        proc = subprocess.run([sys.executable, "-B", *args], capture_output=True, text=True, env=env)
+        try:
+            out = json.loads(proc.stdout)
+        except ValueError:
+            fail(f"state helper printed no JSON line for {args[1:]}: {proc.stdout!r} {proc.stderr!r}")
+        if not out.get("ok") or out.get("status") != status:
+            fail(f"state helper smoke run failed for {args[1:]}: {out}")
+skill_needs = {
+    "afk": ["scripts/afkswitch_state.py", "state helper unavailable (python not found)", "state transition failed",
+            "[AFKSwitch g<G>]", "[AFKSwitch g<G> reset]"],
+    "back": ["scripts/afkswitch_state.py", "state helper unavailable (python not found)", "state transition failed",
+             "[AFKSwitch g<G>]", "[AFKSwitch g<G> reset]", "afkswitch-status g<G>"],
+}
+for name, needles in skill_needs.items():
+    text = (skill_root / name / "SKILL.md").read_text(encoding="utf-8")
+    for needle in needles:
+        if needle not in text:
+            fail(f"skills/{name}/SKILL.md must mention {needle!r}")
+
+# Nothing that runs by itself: no hooks, MCP servers, or apps in any manifest or folder.
+for manifest in (portable, claude, legacy):
+    for key in ("hooks", "mcpServers", "apps"):
+        if key in manifest:
+            fail(f"manifests must not declare {key!r}")
+if (ROOT / "hooks").exists():
+    fail("the plugin must not ship a hooks folder")
+
+# One canonical capability matrix, rendered into the docs.
+capabilities = load_json("adapters/capabilities.json")
+LEVEL_NAMES = {"state-only": "State-only", "notify": "Notify", "fan-in": "Fan-in"}
+for host in capabilities["hosts"]:
+    if host["level"] not in capabilities["levels"]:
+        fail(f"adapters/capabilities.json: unknown level {host['level']!r} for {host['id']}")
+
+
+def host_label(host: dict) -> str:
+    return f"{host['name']} (reference)" if host.get("reference") else host["name"]
+
+
+def render(style: str) -> str:
+    hosts = capabilities["hosts"]
+    if style == "readme":
+        lines = ["| Host | Level | What you get |", "|---|---|---|"]
+        lines += [f"| {h['name']} | {LEVEL_NAMES[h['level']]} | {h['summary']} |" for h in hosts]
+    elif style == "details":
+        lines = ["| Host | Level | Commands | Native primitives |", "|---|---|---|---|"]
+        lines += [f"| {host_label(h)} | **{LEVEL_NAMES[h['level']]}** | {' · '.join(f'`{c}`' for c in h['invoke'])} | "
+                  f"{', '.join(f'`{n}`' for n in h['native']) or 'none (state only)'} |" for h in hosts]
+    elif style == "spec":
+        lines = ["| Host | Level |", "|---|---|"]
+        lines += [f"| {host_label(h)} | {LEVEL_NAMES[h['level']]}"
+                  f"{' via native ' + ' + '.join(f'`{n}`' for n in h['native']) if h['native'] else ''} |" for h in hosts]
+    else:
+        fail(f"unknown capabilities style {style!r}")
+    return "\n".join(lines)
+
+
+MARKER = re.compile(r"(<!-- capabilities:(\w+):start -->\n)(.*?)(<!-- capabilities:\2:end -->)", re.S)
+rendered_docs = {"README.md": "readme", "docs/details.md": "details", "spec/presence.md": "spec"}
+for path, style in rendered_docs.items():
+    text = (ROOT / path).read_text(encoding="utf-8")
+    blocks = MARKER.findall(text)
+    if [b[1] for b in blocks] != [style]:
+        fail(f"{path} needs exactly one capabilities:{style} block")
+    fresh = MARKER.sub(lambda m: m.group(1) + render(m.group(2)) + "\n" + m.group(4), text)
+    if fresh != text:
+        if WRITE:
+            (ROOT / path).write_text(fresh, encoding="utf-8", newline="\n")
+        else:
+            fail(f"{path} is out of date with adapters/capabilities.json; run python scripts/validate.py --write")
+
+# Privacy wording matches what the code does.
+PRIVACY_LINE = ("AFKSwitch runs no server and makes no network requests of its own. Messages between sessions "
+                "travel through the host's own mechanisms and are governed by the host.")
+for path in ("README.md", "PRIVACY.md"):
+    if PRIVACY_LINE not in " ".join((ROOT / path).read_text(encoding="utf-8").split()):
+        fail(f"{path} must carry the privacy statement verbatim")
+
+# No personal paths in anything tracked.
+PERSONAL = re.compile(r"[A-Za-z]:\\\\?Users\\|/home/[a-z]|/Users/[A-Za-z]|\bV:\\|/tmp/")
+tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+for rel in tracked:
+    path = ROOT / rel
+    if rel == "scripts/validate.py" or not path.is_file() or path.suffix in {".png", ".ico"}:
+        continue
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        continue
+    if PERSONAL.search(text):
+        fail(f"personal path in {rel}")
 
 # Legacy product surface stays out of current docs and skills (CHANGELOG keeps history).
 current = ["README.md", "install.ps1", "spec/presence.md", *map(str, skill_root.rglob("*.md"))]
@@ -107,8 +240,11 @@ for path in current:
 
 required = [
     "LICENSE", "PRIVACY.md", "SECURITY.md", "SUPPORT.md", "TERMS.md", "CONTRIBUTING.md",
-    "CHANGELOG.md", "spec/presence.md", "spec/state.schema.json", "docs/history.md",
-    "docs/details.md",
+    "CHANGELOG.md", "spec/presence.md", "spec/state.schema.json", "spec/state.v1.schema.json",
+    "docs/history.md", "docs/details.md", "docs/compatibility.md", "adapters/README.md",
+    "adapters/capabilities.json", "conformance/README.md", "conformance/checker.py",
+    "conformance/notify/scenarios.json", "conformance/fan-in/scenarios.json",
+    "conformance/state/test_state.py",
 ]
 for path in required:
     if not (ROOT / path).is_file():
@@ -135,10 +271,16 @@ names = zipfile.ZipFile(zip_path).namelist()
 if "plugin.json" not in names or "\\" in "".join(names):
     fail("plugin archive must have plugin.json at its root and '/' separators")
 for name in ["skills/afk/SKILL.md", "skills/back/SKILL.md", "skills/afk/agents/openai.yaml",
+             "skills/afk/scripts/afkswitch_state.py", "skills/back/scripts/afkswitch_state.py",
              *(image.removeprefix("./") for image in images)]:
     if name not in names:
         fail(f"plugin archive is missing {name}")
 if any(n.endswith((".mcp.json", ".app.json")) for n in names):
     fail("the skills-only plugin archive must not contain MCP or app definitions")
+if any("__pycache__" in n or n.endswith(".pyc") for n in names):
+    fail("the plugin archive must not contain Python bytecode")
+with zipfile.ZipFile(zip_path) as z:
+    if z.read("skills/afk/scripts/afkswitch_state.py") != HELPER.read_bytes():
+        fail("the archived state helper differs from the repository copy")
 
 print(f"AFKSwitch {version} validation passed.")
