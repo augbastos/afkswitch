@@ -1,0 +1,1183 @@
+{
+  "scenarios": [
+    {
+      "name": "all-peers-notified",
+      "kind": "notify",
+      "expect": "pass",
+      "description": "Two live local peers are told; the stale Remote Control row sharing a name, the subagent and the cloud row are not touched. The live 'api' shares its name with the offline row, so it is addressed with its ref.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "docs",
+            "ref": "d1",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local"
+          },
+          {
+            "name": "api",
+            "ref": "a9",
+            "kind": "interactive",
+            "state": "offline",
+            "location": "remote-control"
+          },
+          {
+            "name": "helper",
+            "ref": "h1",
+            "kind": "subagent",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "cloudy",
+            "ref": "c1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "cloud"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api [a1]",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "docs",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 2,
+          "notified": [
+            "api [a1]",
+            "docs"
+          ],
+          "not_notified": []
+        }
+      }
+    },
+    {
+      "name": "partial-delivery-reported-honestly",
+      "kind": "notify",
+      "expect": "pass",
+      "description": "One delivered, one failed twice (one retry after a confirmed failure), one held for approval: only the delivered one is reported as notified.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "docs",
+            "ref": "d1",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local"
+          },
+          {
+            "name": "web",
+            "ref": "w1",
+            "kind": "interactive",
+            "state": "waiting",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "docs",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "failed",
+            "error": "session not found"
+          },
+          {
+            "to": "docs",
+            "generation": 5,
+            "reset": false,
+            "attempt": 2,
+            "result": "failed",
+            "error": "session not found"
+          },
+          {
+            "to": "web",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "held"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 3,
+          "notified": [
+            "api"
+          ],
+          "not_notified": [
+            {
+              "name": "docs",
+              "reason": "session not found (retried once)"
+            },
+            {
+              "name": "web",
+              "reason": "held for approval"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "refused-is-not-notified",
+      "kind": "notify",
+      "expect": "pass",
+      "description": "A refused message is reported as not notified.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "docs",
+            "ref": "d1",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local"
+          },
+          {
+            "name": "web",
+            "ref": "w1",
+            "kind": "interactive",
+            "state": "waiting",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "docs",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "web",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "refused"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 3,
+          "notified": [
+            "api",
+            "docs"
+          ],
+          "not_notified": [
+            {
+              "name": "web",
+              "reason": "refused"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "no-targets",
+      "kind": "notify",
+      "expect": "pass",
+      "description": "Nothing alive to tell: the state is still saved and the report says zero.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a9",
+            "kind": "interactive",
+            "state": "offline",
+            "location": "remote-control"
+          },
+          {
+            "name": "old",
+            "ref": "o1",
+            "kind": "interactive",
+            "state": "exited",
+            "location": "local"
+          }
+        ],
+        "sends": [],
+        "report": {
+          "generation": 5,
+          "discovered": 0,
+          "notified": [],
+          "not_notified": []
+        }
+      }
+    },
+    {
+      "name": "duplicate-names-use-ref",
+      "kind": "notify",
+      "expect": "pass",
+      "description": "Two live sessions share the name 'web'; each is addressed as 'web [ref]'.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "web",
+            "ref": "w1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "web",
+            "ref": "w2",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "web [w1]",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "web [w2]",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 2,
+          "notified": [
+            "web [w1]",
+            "web [w2]"
+          ],
+          "not_notified": []
+        }
+      }
+    },
+    {
+      "name": "one-failure-does-not-cancel-others",
+      "kind": "notify",
+      "expect": "pass",
+      "description": "The first send fails; the others are still sent and delivered.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "docs",
+            "ref": "d1",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local"
+          },
+          {
+            "name": "web",
+            "ref": "w1",
+            "kind": "interactive",
+            "state": "waiting",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "failed",
+            "error": "timeout"
+          },
+          {
+            "to": "docs",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "web",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 3,
+          "notified": [
+            "docs",
+            "web"
+          ],
+          "not_notified": [
+            {
+              "name": "api",
+              "reason": "timeout"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "state-failure-notifies-nobody",
+      "kind": "notify",
+      "expect": "pass",
+      "description": "The helper could not save the state: nobody is messaged and the report says so.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": false,
+          "message": "state transition failed: write refused (~/.afkswitch)"
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "docs",
+            "ref": "d1",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local"
+          },
+          {
+            "name": "web",
+            "ref": "w1",
+            "kind": "interactive",
+            "state": "waiting",
+            "location": "local"
+          }
+        ],
+        "sends": [],
+        "report": {
+          "state_failed": true,
+          "message": "AFK not set · state transition failed: write refused (~/.afkswitch)"
+        }
+      }
+    },
+    {
+      "name": "reset-generation-is-announced",
+      "kind": "notify",
+      "expect": "pass",
+      "description": "After a malformed file was replaced the generation restarted; messages say 'reset'.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 1,
+          "reset": true
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 1,
+            "reset": true,
+            "attempt": 1,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "generation": 1,
+          "discovered": 1,
+          "notified": [
+            "api"
+          ],
+          "not_notified": []
+        }
+      }
+    },
+    {
+      "name": "stale-generation-ignored",
+      "kind": "notify",
+      "expect": "pass",
+      "description": "Receivers ignore older generations, treat the same one as a repeat, and apply newer or reset ones.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 1,
+          "notified": [
+            "api"
+          ],
+          "not_notified": []
+        },
+        "receivers": [
+          {
+            "session": "api",
+            "known_generation": 6,
+            "message": {
+              "generation": 5,
+              "reset": false
+            },
+            "action": "ignore-stale"
+          },
+          {
+            "session": "docs",
+            "known_generation": 5,
+            "message": {
+              "generation": 5,
+              "reset": false
+            },
+            "action": "repeat"
+          },
+          {
+            "session": "web",
+            "known_generation": 4,
+            "message": {
+              "generation": 5,
+              "reset": false
+            },
+            "action": "apply"
+          },
+          {
+            "session": "ops",
+            "known_generation": 9,
+            "message": {
+              "generation": 1,
+              "reset": true
+            },
+            "action": "apply"
+          },
+          {
+            "session": "new",
+            "known_generation": null,
+            "message": {
+              "generation": 3,
+              "reset": false
+            },
+            "action": "apply"
+          }
+        ]
+      }
+    },
+    {
+      "name": "held-reported-as-notified",
+      "kind": "notify",
+      "expect": "fail",
+      "description": "A message held for approval is claimed as notified.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "docs",
+            "ref": "d1",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local"
+          },
+          {
+            "name": "web",
+            "ref": "w1",
+            "kind": "interactive",
+            "state": "waiting",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "docs",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "web",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "held"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 3,
+          "notified": [
+            "api",
+            "docs",
+            "web"
+          ],
+          "not_notified": []
+        }
+      },
+      "violations": [
+        "OVERCLAIMED_DELIVERY",
+        "UNREPORTED_FAILURE"
+      ]
+    },
+    {
+      "name": "offline-row-messaged",
+      "kind": "notify",
+      "expect": "fail",
+      "description": "The stale Remote Control row is messaged.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "docs",
+            "ref": "d1",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local"
+          },
+          {
+            "name": "api",
+            "ref": "a9",
+            "kind": "interactive",
+            "state": "offline",
+            "location": "remote-control"
+          },
+          {
+            "name": "helper",
+            "ref": "h1",
+            "kind": "subagent",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "cloudy",
+            "ref": "c1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "cloud"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api [a1]",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "docs",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "api [a9]",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 2,
+          "notified": [
+            "api [a1]",
+            "docs"
+          ],
+          "not_notified": []
+        }
+      },
+      "violations": [
+        "NON_TARGET_MESSAGED"
+      ]
+    },
+    {
+      "name": "messaged-before-state-saved",
+      "kind": "notify",
+      "expect": "fail",
+      "description": "The state write failed but peers were told anyway.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": false,
+          "message": "state transition failed: No space left on device"
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "docs",
+            "ref": "d1",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local"
+          },
+          {
+            "name": "web",
+            "ref": "w1",
+            "kind": "interactive",
+            "state": "waiting",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "state_failed": false,
+          "message": "AFK set"
+        }
+      },
+      "violations": [
+        "SENT_WITHOUT_STATE",
+        "STATE_FAILURE_NOT_REPORTED"
+      ]
+    },
+    {
+      "name": "resent-without-failure",
+      "kind": "notify",
+      "expect": "fail",
+      "description": "A delivered message is sent again because the session looked slow.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          },
+          {
+            "to": "api",
+            "generation": 5,
+            "reset": false,
+            "attempt": 2,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 1,
+          "notified": [
+            "api"
+          ],
+          "not_notified": []
+        }
+      },
+      "violations": [
+        "DUPLICATE_SEND"
+      ]
+    },
+    {
+      "name": "failure-cancelled-the-rest",
+      "kind": "notify",
+      "expect": "fail",
+      "description": "After the first failure the adapter stopped.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "docs",
+            "ref": "d1",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local"
+          },
+          {
+            "name": "web",
+            "ref": "w1",
+            "kind": "interactive",
+            "state": "waiting",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "failed",
+            "error": "timeout"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 3,
+          "notified": [],
+          "not_notified": [
+            {
+              "name": "api",
+              "reason": "timeout"
+            }
+          ]
+        }
+      },
+      "violations": [
+        "TARGET_MISSED",
+        "FAILURE_CANCELLED_OTHERS",
+        "UNREPORTED_FAILURE"
+      ]
+    },
+    {
+      "name": "stale-message-applied",
+      "kind": "notify",
+      "expect": "fail",
+      "description": "A receiver that already saw g7 acts on a late g6.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 1,
+          "notified": [
+            "api"
+          ],
+          "not_notified": []
+        },
+        "receivers": [
+          {
+            "session": "api",
+            "known_generation": 7,
+            "message": {
+              "generation": 6,
+              "reset": false
+            },
+            "action": "apply"
+          }
+        ]
+      },
+      "violations": [
+        "RECEIVER_WRONG_ACTION"
+      ]
+    },
+    {
+      "name": "bare-name-when-shared",
+      "kind": "notify",
+      "expect": "fail",
+      "description": "Two live 'web' sessions, sent to the bare name.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "web",
+            "ref": "w1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          },
+          {
+            "name": "web",
+            "ref": "w2",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "web",
+            "generation": 5,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 2,
+          "notified": [],
+          "not_notified": []
+        }
+      },
+      "violations": [
+        "AMBIGUOUS_TARGET",
+        "TARGET_MISSED"
+      ]
+    },
+    {
+      "name": "wrong-generation-in-message",
+      "kind": "notify",
+      "expect": "fail",
+      "description": "The message carries an old generation.",
+      "transcript": {
+        "self": "main",
+        "state": {
+          "ok": true,
+          "generation": 5,
+          "reset": false
+        },
+        "listing": [
+          {
+            "name": "main",
+            "ref": "m0",
+            "kind": "interactive",
+            "state": "busy",
+            "location": "local",
+            "self": true
+          },
+          {
+            "name": "api",
+            "ref": "a1",
+            "kind": "interactive",
+            "state": "idle",
+            "location": "local"
+          }
+        ],
+        "sends": [
+          {
+            "to": "api",
+            "generation": 4,
+            "reset": false,
+            "attempt": 1,
+            "result": "delivered"
+          }
+        ],
+        "report": {
+          "generation": 5,
+          "discovered": 1,
+          "notified": [
+            "api"
+          ],
+          "not_notified": []
+        }
+      },
+      "violations": [
+        "WRONG_GENERATION"
+      ]
+    }
+  ]
+}

@@ -11,27 +11,61 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    runs-on: ubuntu-latest
+  checks:
+    name: checks (${{ matrix.os }}, Python ${{ matrix.python }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.13"]
+        include:
+          - os: ubuntu-latest
+            python: "3.9"  # the helper's floor
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --disable-pip-version-check --quiet pytest jsonschema
+      - name: Validate manifests, helper, schemas, capability tables, links, archive
+        run: python scripts/validate.py
+      - name: Build the plugin archive and list it
+        run: |
+          zip_path=$(python scripts/package.py)
+          python -m zipfile -l "$zip_path"
+      - name: Conformance (state incl. concurrency and migration fixtures, schema agreement, checker)
+        run: python -m pytest conformance -q -p no:cacheprovider
+      - name: Reference checker on the example transcripts
+        run: python conformance/checker.py conformance/notify/scenarios.json conformance/fan-in/scenarios.json
+
+  windows-installer-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: python scripts/validate.py
-
-  windows-installer-smoke:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
       - name: Install personal skills
         shell: pwsh
         run: ./install.ps1
-      - name: Verify installed skills
+      - name: Verify installed skills and helper
         shell: pwsh
         run: |
-          if (-not (Test-Path (Join-Path $HOME '.claude/skills/afk/SKILL.md'))) { throw 'afk not installed' }
-          if (-not (Test-Path (Join-Path $HOME '.claude/skills/back/SKILL.md'))) { throw 'back not installed' }
+          $skills = Join-Path $HOME '.claude/skills'
+          foreach ($f in 'afk/SKILL.md', 'back/SKILL.md', 'afk/scripts/afkswitch_state.py', 'back/scripts/afkswitch_state.py') {
+            if (-not (Test-Path (Join-Path $skills $f))) { throw "$f not installed" }
+          }
+          $env:AFKSWITCH_STATE_DIR = Join-Path $env:RUNNER_TEMP 'afkswitch-state'
+          $afk = python (Join-Path $skills 'afk/scripts/afkswitch_state.py') afk --context 'smoke test' | ConvertFrom-Json
+          $back = python (Join-Path $skills 'back/scripts/afkswitch_state.py') back | ConvertFrom-Json
+          if (-not $afk.ok -or $afk.status -ne 'afk') { throw "afk failed: $afk" }
+          if (-not $back.ok -or $back.status -ne 'available' -or $back.generation -ne 2) { throw "back failed: $back" }
       - name: Uninstall
         shell: pwsh
         run: ./install.ps1 -Uninstall

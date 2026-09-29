@@ -32,7 +32,7 @@ with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as z:
         z.write(ROOT / rel, rel)
     for directory in include_dirs:
         for path in sorted((ROOT / directory).rglob("*")):
-            if path.is_file():
+            if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
                 z.write(path, path.relative_to(ROOT).as_posix())
 
 print(out)

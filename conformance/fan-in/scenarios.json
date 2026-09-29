@@ -1,0 +1,613 @@
+{
+  "scenarios": [
+    {
+      "name": "all-replied",
+      "kind": "fan-in",
+      "expect": "pass",
+      "description": "Both peers answered this /back.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: tests green\nrunning: none\nother-blockers: none"
+          },
+          {
+            "from": "docs",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/docs\nneeds-human: none\ncompleted: site build\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 2,
+          "late": [],
+          "replied": [
+            "api",
+            "docs"
+          ],
+          "no_reply": [],
+          "sections": [
+            "completed"
+          ],
+          "completed": [
+            "api",
+            "docs"
+          ]
+        }
+      }
+    },
+    {
+      "name": "partial-reply",
+      "kind": "fan-in",
+      "expect": "pass",
+      "description": "One peer has not answered: it is 'no reply yet', nothing else.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: tests green\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 2,
+          "late": [],
+          "replied": [
+            "api"
+          ],
+          "no_reply": [
+            "docs"
+          ],
+          "sections": [
+            "completed",
+            "no_reply"
+          ],
+          "completed": [
+            "api"
+          ]
+        }
+      }
+    },
+    {
+      "name": "no-reply-yet",
+      "kind": "fan-in",
+      "expect": "pass",
+      "description": "Nobody has answered yet.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs",
+          "web"
+        ],
+        "replies": [],
+        "report": {
+          "requested_count": 3,
+          "late": [],
+          "replied": [],
+          "no_reply": [
+            "api",
+            "docs",
+            "web"
+          ],
+          "sections": [
+            "no_reply"
+          ]
+        }
+      }
+    },
+    {
+      "name": "human-blocker-first",
+      "kind": "fan-in",
+      "expect": "pass",
+      "description": "Two sessions need the same unlock; Needs you now comes first.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs",
+          "web"
+        ],
+        "replies": [
+          {
+            "from": "docs",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/docs\nneeds-human: none\ncompleted: site build\nrunning: none\nother-blockers: none"
+          },
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: elevation to restart the local service; resume with: restart, then smoke test\ncompleted: none\nrunning: integration suite\nother-blockers: none"
+          },
+          {
+            "from": "web",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/web\nneeds-human: vault unlock to sign the release commit\ncompleted: none\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 3,
+          "late": [],
+          "replied": [
+            "api",
+            "docs",
+            "web"
+          ],
+          "no_reply": [],
+          "sections": [
+            "needs_you_now",
+            "completed",
+            "running"
+          ],
+          "needs_you_now": [
+            "api",
+            "web"
+          ],
+          "completed": [
+            "docs"
+          ],
+          "running": [
+            "api"
+          ]
+        }
+      }
+    },
+    {
+      "name": "duplicate-names-by-ref",
+      "kind": "fan-in",
+      "expect": "pass",
+      "description": "Two sessions named 'web' are kept apart by ref.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "web [w1]",
+          "web [w2]"
+        ],
+        "replies": [
+          {
+            "from": "web [w1]",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/web\nneeds-human: none\ncompleted: lint fixed\nrunning: none\nother-blockers: none"
+          },
+          {
+            "from": "web [w2]",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/web\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 2,
+          "late": [],
+          "replied": [
+            "web [w1]",
+            "web [w2]"
+          ],
+          "no_reply": [],
+          "sections": [
+            "completed"
+          ],
+          "completed": [
+            "web [w1]"
+          ]
+        }
+      }
+    },
+    {
+      "name": "late-reply-same-generation",
+      "kind": "fan-in",
+      "expect": "pass",
+      "description": "A reply for this /back that lands after the first report is folded in.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          },
+          {
+            "from": "docs",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/docs\nneeds-human: none\ncompleted: docs deployed to preview\nrunning: none\nother-blockers: none",
+            "after_report": true
+          }
+        ],
+        "report": {
+          "requested_count": 2,
+          "late": [],
+          "replied": [
+            "api",
+            "docs"
+          ],
+          "no_reply": [],
+          "sections": [
+            "completed"
+          ],
+          "completed": [
+            "docs"
+          ]
+        }
+      }
+    },
+    {
+      "name": "reply-to-an-earlier-back",
+      "kind": "fan-in",
+      "expect": "pass",
+      "description": "A reply tagged g8 answers an earlier /back: shown as late, not counted.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          },
+          {
+            "from": "docs",
+            "to": "main",
+            "text": "afkswitch-status g8\ndir: ~/work/docs\nneeds-human: none\ncompleted: old news\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 2,
+          "late": [
+            "docs"
+          ],
+          "replied": [
+            "api"
+          ],
+          "no_reply": [
+            "docs"
+          ],
+          "sections": [
+            "no_reply",
+            "late"
+          ]
+        }
+      }
+    },
+    {
+      "name": "status-requested-from-a-different-session",
+      "kind": "fan-in",
+      "expect": "pass",
+      "description": "A peer's answer to another session's /back is not counted here.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          },
+          {
+            "from": "docs",
+            "to": "laptop-shell",
+            "text": "afkswitch-status g9\ndir: ~/work/docs\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 2,
+          "late": [],
+          "replied": [
+            "api"
+          ],
+          "no_reply": [
+            "docs"
+          ],
+          "sections": [
+            "no_reply"
+          ]
+        }
+      }
+    },
+    {
+      "name": "duplicate-reply-counted-once",
+      "kind": "fan-in",
+      "expect": "pass",
+      "description": "A session that answers twice is counted once.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: x\nrunning: none\nother-blockers: none"
+          },
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: x\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 1,
+          "late": [],
+          "replied": [
+            "api"
+          ],
+          "no_reply": [],
+          "sections": [
+            "completed"
+          ],
+          "completed": [
+            "api"
+          ]
+        }
+      }
+    },
+    {
+      "name": "silence-read-as-done",
+      "kind": "fan-in",
+      "expect": "fail",
+      "description": "A session that never answered is reported as completed.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 2,
+          "late": [],
+          "replied": [
+            "api"
+          ],
+          "no_reply": [],
+          "sections": [
+            "completed"
+          ],
+          "completed": [
+            "docs"
+          ]
+        }
+      },
+      "violations": [
+        "SILENCE_MISREAD",
+        "NO_REPLY_MISMATCH"
+      ]
+    },
+    {
+      "name": "blocker-not-first",
+      "kind": "fan-in",
+      "expect": "fail",
+      "description": "A human blocker is listed after completed work.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: elevation to restart the local service; resume with: restart, then smoke test\ncompleted: none\nrunning: none\nother-blockers: none"
+          },
+          {
+            "from": "docs",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/docs\nneeds-human: none\ncompleted: build\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 2,
+          "late": [],
+          "replied": [
+            "api",
+            "docs"
+          ],
+          "no_reply": [],
+          "sections": [
+            "completed",
+            "needs_you_now"
+          ],
+          "needs_you_now": [
+            "api"
+          ],
+          "completed": [
+            "docs"
+          ]
+        }
+      },
+      "violations": [
+        "SECTION_ORDER",
+        "HUMAN_BLOCKER_NOT_FIRST"
+      ]
+    },
+    {
+      "name": "stale-reply-counted",
+      "kind": "fan-in",
+      "expect": "fail",
+      "description": "A g8 reply is counted toward the g9 tally.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          },
+          {
+            "from": "docs",
+            "to": "main",
+            "text": "afkswitch-status g8\ndir: ~/work/docs\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 2,
+          "late": [
+            "docs"
+          ],
+          "replied": [
+            "api",
+            "docs"
+          ],
+          "no_reply": [],
+          "sections": []
+        }
+      },
+      "violations": [
+        "PHANTOM_REPLY",
+        "NO_REPLY_MISMATCH"
+      ]
+    },
+    {
+      "name": "duplicate-counted-twice",
+      "kind": "fan-in",
+      "expect": "fail",
+      "description": "The same session is counted twice.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api",
+          "docs"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          },
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 2,
+          "late": [],
+          "replied": [
+            "api",
+            "api"
+          ],
+          "no_reply": [
+            "docs"
+          ],
+          "sections": [
+            "no_reply"
+          ]
+        }
+      },
+      "violations": [
+        "DUPLICATE_REPLY"
+      ]
+    },
+    {
+      "name": "other-askers-reply-counted",
+      "kind": "fan-in",
+      "expect": "fail",
+      "description": "A reply addressed to another session is counted here.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "laptop-shell",
+            "text": "afkswitch-status g9\ndir: ~/work/api\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 1,
+          "late": [],
+          "replied": [
+            "api"
+          ],
+          "no_reply": [],
+          "sections": []
+        }
+      },
+      "violations": [
+        "PHANTOM_REPLY",
+        "NO_REPLY_MISMATCH"
+      ]
+    },
+    {
+      "name": "late-reply-hidden",
+      "kind": "fan-in",
+      "expect": "fail",
+      "description": "A reply to an earlier /back disappears from the report.",
+      "transcript": {
+        "self": "main",
+        "generation": 9,
+        "requested": [
+          "api"
+        ],
+        "replies": [
+          {
+            "from": "api",
+            "to": "main",
+            "text": "afkswitch-status g7\ndir: ~/work/api\nneeds-human: none\ncompleted: none\nrunning: none\nother-blockers: none"
+          }
+        ],
+        "report": {
+          "requested_count": 1,
+          "late": [],
+          "replied": [],
+          "no_reply": [
+            "api"
+          ],
+          "sections": [
+            "no_reply"
+          ]
+        }
+      },
+      "violations": [
+        "LATE_REPLY_UNREPORTED"
+      ]
+    }
+  ]
+}

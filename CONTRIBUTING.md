@@ -28,7 +28,10 @@ It does not own general fleet discovery, arbitrary broadcasting, scheduling, orc
 
 ## Pull requests
 
-Keep changes focused. Update documentation and validation whenever behavior or a manifest changes. New host support must document its actual capability level: state-only, notify, or fan-in.
+Keep changes focused. Update documentation and validation whenever behavior or a manifest changes.
+Before opening a pull request, run `python scripts/validate.py` and `python -m pytest conformance`
+(see [`conformance/README.md`](conformance/README.md)); a new adapter follows
+[`adapters/README.md`](adapters/README.md). New host support must document its actual capability level: state-only, notify, or fan-in.
 
 Do not claim host parity without a reproducible test.
 
