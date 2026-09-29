@@ -12,12 +12,17 @@ assumed. The support levels themselves are in
 | Codex CLI | 0.159.0 | Linux cloud container, no login | `codex plugin marketplace add <repo>` + `codex plugin add afkswitch@afkswitch` + `codex plugin list`; the state helper and the shim run from the installed plugin cache | passed; both helper files present in the cache and ran |
 | Python | 3.9, 3.13 | GitHub Actions: Linux, Windows, macOS | `scripts/validate.py`, `scripts/package.py`, `python -m pytest conformance` | passed on the pull request CI (all jobs green) |
 
-**Full host validation of 0.5.0 is pending a local host run**: a real Claude Code fleet
-(`/afk`, `/back`, notify, fan-in, stale generations, persistence failure before notify,
-concurrency) and Codex state-only use (`$afkswitch:afk`, `$afkswitch:back`, migration,
-refusal of a newer state version, context limits). The cloud runs above had no model
-session: they prove the plugin installs with its helper and the helper works from there,
-not that a model follows the skills.
+The cloud runs above had no model session: they prove the plugin installs with its helper
+and the helper works from there, not that a model follows the skills. That was then run
+with real model sessions on one machine:
+
+| Host | Version | What was run | Result |
+|---|---|---|---|
+| Claude Code | 2.1.284 | Disposable sessions in an isolated config: `/afkswitch:afk` saved generation 1 before any message and notified both peers; `/afkswitch:back` from a session that never saw the `/afk` saved generation 2, reported the right duration and collected every reply; an older generation-1 message delivered afterwards was ignored; a state file from a newer version was refused, left unchanged, and nobody was told | passed |
+| Codex CLI | 0.156.1 | `$afkswitch:afk`, `$afkswitch:afk sleep` (repeated: generation unchanged), `$afkswitch:back` with the duration from the saved state, a version 1 file migrated, a newer version refused and left unchanged; with the state folder allowed as a writable root | passed |
+
+Without a writable root for `~/.afkswitch`, Codex's default sandbox refuses the write and
+the skill reports `state transition failed` without claiming anything.
 
 ## AFKSwitch 0.4.x
 

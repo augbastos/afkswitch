@@ -48,5 +48,7 @@ again later.
 
 - Sessions started after `/afk` are still not told (that would need a startup hook).
 - Codex remains state-only: it gives the model no tool to message other Codex sessions.
-- Full host validation of 0.5.0 is pending a local host run; see
-  [compatibility](compatibility.md).
+- In Codex, saving the state needs `~/.afkswitch` as a writable root (or your approval);
+  otherwise the skill reports that the write was refused.
+- Tested with real sessions on one machine (Claude Code 2.1.284, Codex CLI
+  0.156.1) and by CI on Linux, Windows, and macOS; see [compatibility](compatibility.md).
