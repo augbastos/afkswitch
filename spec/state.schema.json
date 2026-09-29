@@ -1,18 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/augbastos/afkswitch/blob/main/spec/state.schema.json",
-  "title": "AFKSwitch state",
+  "title": "AFKSwitch state, version 2",
+  "description": "~/.afkswitch/state.json. Written only through the state protocol in spec/presence.md. Version 1 files (state.v1.schema.json) are read and migrated.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "version",
     "status",
     "since",
-    "context"
+    "context",
+    "generation"
   ],
   "properties": {
     "version": {
-      "const": 1
+      "const": 2
     },
     "status": {
       "type": "string",
@@ -22,15 +24,37 @@
       ]
     },
     "since": {
+      "description": "When this status began. Informative only: ordering uses generation, never clocks.",
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
     },
     "context": {
+      "description": "Optional user text after /afk, verbatim; at most 2048 Unicode code points, never truncated.",
       "type": [
         "string",
         "null"
       ],
       "maxLength": 2048
+    },
+    "generation": {
+      "description": "Strictly increases by one on every durable transition; unchanged by an idempotent repeat.",
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "if": {
+    "properties": {
+      "status": {
+        "const": "available"
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "context": {
+        "type": "null"
+      }
     }
   }
 }
