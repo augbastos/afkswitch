@@ -4,6 +4,47 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] (0.5.0)
+
+### Changed
+
+- **State protocol v2.** `~/.afkswitch/state.json` gains `generation`, a counter that goes up
+  by one on every real change and orders presence without trusting clocks. Repeating `/afk`
+  with the same context, or `/back`, keeps both `since` and `generation`.
+- The state is written only by a bundled standard-library Python 3.9+ helper
+  (`skills/afk/scripts/afkswitch_state.py`; `/back` reaches it through a shim). It validates
+  input, takes an `O_EXCL` lock file, writes a temp file with `fsync` and an atomic rename,
+  reads the result back, and only then lets the skill notify anyone. Without Python the
+  skills say `state helper unavailable (python not found)` and change nothing.
+- Peer messages start with `[AFKSwitch g<G>]`; a session that already saw a newer generation
+  ignores an older message. Status replies start with `afkswitch-status g<G>`, so a reply to
+  an earlier `/back` is shown as late instead of being counted. Reports show `g<G>`.
+- Context over 2048 characters is refused with a clear message instead of being saved or
+  cut.
+- A malformed state file is kept as `state.json.corrupt-<time>` before it is replaced; a
+  state file from a newer AFKSwitch is never overwritten (`unsupported state version N`).
+- Privacy wording: "AFKSwitch runs no server and makes no network requests of its own.
+  Messages between sessions travel through the host's own mechanisms and are governed by
+  the host." replaces broader claims in the README and PRIVACY.md.
+- The README no longer says every session is told; it says which ones the host could reach.
+
+### Added
+
+- `conformance/`: executable state tests (including 60 concurrent transitions and a check
+  that they fail without the lock), notify and fan-in scenarios with a pure reference
+  checker, and a README saying what PASS means per level.
+- `adapters/capabilities.json` (the one support matrix, rendered into the docs by
+  `scripts/validate.py --write`) and `adapters/README.md` for adapter authors.
+- `docs/compatibility.md`: only versions actually run.
+- CI on Linux, Windows and macOS (validation, packaging, conformance, Python 3.9 floor) and a
+  weekly check against the latest Claude Code and Codex CLIs.
+
+### Migration
+
+Nothing to do. A version 1 state file from 0.4.x is migrated to version 2 on the next
+`/afk` or `/back` (generation starts at 1); nothing needs deleting. Python 3.9+ must be on
+`PATH`.
+
 ## [0.4.1] - 2026-09-27
 
 ### Added
