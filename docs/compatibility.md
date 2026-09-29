@@ -21,8 +21,12 @@ with real model sessions on one machine:
 | Claude Code | 2.1.284 | Disposable sessions in an isolated config: `/afkswitch:afk` saved generation 1 before any message and notified both peers; `/afkswitch:back` from a session that never saw the `/afk` saved generation 2, reported the right duration and collected every reply; an older generation-1 message delivered afterwards was ignored; a state file from a newer version was refused, left unchanged, and nobody was told | passed |
 | Codex CLI | 0.156.1 | `$afkswitch:afk`, `$afkswitch:afk sleep` (repeated: generation unchanged), `$afkswitch:back` with the duration from the saved state, a version 1 file migrated, a newer version refused and left unchanged; with the state folder allowed as a writable root | passed |
 
-Without a writable root for `~/.afkswitch`, Codex's default sandbox refuses the write and
-the skill reports `state transition failed` without claiming anything.
+In Codex's `workspace-write` sandbox without a writable root for `~/.afkswitch`, the write
+was refused and the skill reported `state transition failed` without claiming anything.
+
+Still **pending** with real sessions: two sessions running `/afk` or `/back` at the same
+moment, and the 2048-character context limit. Both are covered by the conformance suite
+against the helper, not yet by a live model session.
 
 ## AFKSwitch 0.4.x
 
