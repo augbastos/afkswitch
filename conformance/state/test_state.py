@@ -6,7 +6,9 @@ AFKSWITCH_HELPER pointing at a command-compatible executable script.
 """
 from __future__ import annotations
 
+import ast
 import importlib.util
+import inspect
 import json
 import os
 import subprocess
@@ -108,6 +110,46 @@ def test_usage_errors_are_structured(sd):
     assert code == 2 and out["ok"] is False and out["error"] == "usage"
     code, out = run(sd, "back", "--context", "x")
     assert code == 2 and out["error"] == "usage"
+
+
+def test_remote_message_does_not_end_afk_only_back_does(sd):
+    """Interaction while AFK is not a presence transition, even through the CLI."""
+    helper = load_module()
+    parse_tree = ast.parse(inspect.getsource(helper.parse))
+    command_sets = [node.comparators[0] for node in ast.walk(parse_tree)
+                    if isinstance(node, ast.Compare) and any(isinstance(op, ast.NotIn) for op in node.ops)
+                    and isinstance(node.left, ast.Subscript) and isinstance(node.left.value, ast.Name)
+                    and node.left.value.id == "argv" and isinstance(node.comparators[0], ast.Tuple)]
+    assert len(command_sets) == 1, "update this test when the helper command parser changes"
+    commands = {ast.literal_eval(item) for item in command_sets[0].elts}
+    assert "afk" in commands and "back" in commands
+
+    code, initial = run(sd, "afk", "--context", "work")
+    assert code == 0 and initial["status"] == saved(sd)["status"] == "afk"
+    original_since = initial["since"]
+
+    # The same mode is idempotent; switching modes remains AFK.
+    code, same = run(sd, "afk", "--context", "work")
+    assert code == 0 and same["status"] == "afk" and same["changed"] is False
+    assert same["since"] == saved(sd)["since"] == original_since
+
+    # Exercise every bare helper command except the explicit return transition.
+    for command in sorted(commands - {"back"}):
+        code, out = run(sd, command)
+        assert code == 0 and out["status"] == saved(sd)["status"] == "afk", command
+    for args, stdin in [(("afk", "--context", "sleep"), None),
+                        (("afk", "--context=work"), None),
+                        (("afk", "--context-stdin"), b"sleep\n")]:
+        code, out = run(sd, *args, stdin=stdin)
+        assert code == 0 and out["status"] == saved(sd)["status"] == "afk", args
+
+    # Common read aliases and a remote message are not accepted as return commands.
+    for args in [("status",), ("show",), ("remote-message",), ()]:
+        code, out = run(sd, *args)
+        assert code == 2 and out["error"] == "usage" and saved(sd)["status"] == "afk", args
+
+    code, returned = run(sd, "back")
+    assert code == 0 and returned["status"] == saved(sd)["status"] == "available"
 
 
 # ------------------------------------------------------------------ idempotence and generations
