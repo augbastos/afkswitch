@@ -1,0 +1,69 @@
+name: host-compat
+
+# Weekly: install the latest Claude Code and Codex CLIs and run their non-interactive
+# plugin checks against this repository. No secrets, no login, no auto-fix. A check that
+# needs a login is skipped with a notice instead of failing.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hosts:
+    name: ${{ matrix.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [claude-code, codex]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install the latest CLI
+        run: |
+          if [ "${{ matrix.host }}" = claude-code ]; then npm install -g @anthropic-ai/claude-code; claude --version
+          else npm install -g @openai/codex; codex --version; fi
+      - name: Plugin checks in a throwaway home
+        run: |
+          export HOME="$RUNNER_TEMP/host-home"; mkdir -p "$HOME/.codex"
+          export AFKSWITCH_STATE_DIR="$RUNNER_TEMP/afkswitch-state"
+          skipped=0
+          step() {  # run a check; a login requirement becomes a notice, anything else fails
+            if out=$("$@" 2>&1); then echo "$out"; return 0; fi
+            echo "$out"
+            if echo "$out" | grep -qiE 'log ?in|not authenticated|unauthori[sz]ed|api key|credentials'; then
+              echo "::notice::skipped '$*': needs a login"; skipped=1; return 0
+            fi
+            echo "::error::'$*' failed"; return 1
+          }
+          if [ "${{ matrix.host }}" = claude-code ]; then
+            step claude plugin validate --strict .
+            step claude plugin marketplace add "$GITHUB_WORKSPACE"
+            step claude plugin install afkswitch@afkswitch
+            cache="$HOME/.claude/plugins/cache"
+          else
+            step codex plugin marketplace add "$GITHUB_WORKSPACE"
+            step codex plugin add afkswitch@afkswitch
+            step codex plugin list
+            cache="$HOME/.codex/plugins/cache"
+          fi
+          helper=$(find "$cache" -path '*skills/afk/scripts/afkswitch_state.py' 2>/dev/null | head -1)
+          shim=$(find "$cache" -path '*skills/back/scripts/afkswitch_state.py' 2>/dev/null | head -1)
+          if [ -z "$helper" ] || [ -z "$shim" ]; then
+            if [ "$skipped" = 1 ]; then echo "::notice::helper check skipped: the install needed a login"; exit 0; fi
+            echo "::error::state helper missing from the installed plugin"; exit 1
+          fi
+          python "$helper" afk --context weekly | tee /dev/stderr | grep -q '"ok": true'
+          python "$shim" back | tee /dev/stderr | grep -q '"ok": true'
