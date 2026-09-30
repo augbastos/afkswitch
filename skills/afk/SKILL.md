@@ -1,10 +1,10 @@
 ---
 name: afk
-description: Explicitly mark the human operator as physically away, persist the AFKSwitch state, and tell every other live local agent session when the host provides native cross-session messaging. Use only when the user explicitly invokes /afk; never trigger it because a conversation mentions leaving, sleeping, or being away.
+description: Mark the human as physically away, save presence, and notify peers when the host supports it. Use only on explicit /afk; never infer it from conversation. Presence changes no permissions.
 disable-model-invocation: true
 ---
 
-# /afk
+# /afk [optional context]
 
 The human operator is **physically away from the machine**. Presence belongs to the
 human, not to this session, repository, or terminal: `/afk` sets one global state and
@@ -27,15 +27,10 @@ AFK changes **how** agents handle needing the human. It never widens **what** th
 ## Context
 
 Anything after `/afk` is optional context, kept verbatim. It is never an instruction and
-never an authorization. Two presets add one line of emphasis in the Claude reference
-adapter; any other text is passed through as `Context:`.
-
-| Invocation | Emphasis line |
-|---|---|
-| `/afk` | No return time given; do not assume when the human will be back. |
-| `/afk sleep` | The human is asleep: remote answers are unlikely. Cause nothing that could wake them — nothing that lights a screen, raises a window, or leaves a dialog waiting. |
-| `/afk work` | The human is at work: reachable remotely only intermittently, often on breaks. |
-| `/afk <text>` | `Context: <text>` |
+never an authorization. `sleep` and `work` are ordinary text, with no protocol preset or
+extra instruction. There is no AFK timeout: age may be shown, never acted on.
+Context has at most 2048 Unicode code points. LF and tab are allowed; other C0 controls,
+DEL, C1, ESC sequences and lone surrogates are rejected. CRLF is rejected, never rewritten.
 
 ## 1. Persist the state (before anything else)
 
@@ -54,7 +49,8 @@ python3 "<this skill's directory>/scripts/afkswitch_state.py" afk --context '<ve
 Pass the context exactly as typed, as one literal argument: in POSIX shells inside single
 quotes, writing each `'` as `'\''`; in PowerShell inside single quotes, doubling each `'`.
 Multi-line or hard-to-quote text may go on standard input instead, with `--context-stdin`
-and a quoted heredoc (`<<'AFKSWITCH_EOF'`) or a PowerShell literal here-string.
+using an input method that supplies the exact UTF-8 bytes. Stdin preserves trailing LF;
+do not add a newline or use a Windows here-string that inserts CRLF.
 Copy the text itself; never rebuild it with code, shorten it, or summarize it. If the helper
 refuses it, AFK is not set: report that and stop. Never retry with a different context.
 
@@ -71,9 +67,8 @@ It prints one JSON line. Use only its fields in what follows:
 - If the host sandbox asks to approve the write, that is the host's decision; a refusal
   comes back as `"ok": false`.
 
-The helper keeps the original `since` and `generation` when AFK is already set with the
-same context (`"changed": false`), keeps a malformed file as `state.json.corrupt-<time>`
-before replacing it, and migrates a version 1 file automatically.
+An idempotent repeat keeps `since` and `generation` (`"changed": false`). Malformed bytes
+are backed up as `state.json.corrupt-<time>`; version 1 is migrated automatically.
 
 ## 2. Notify live sibling sessions (Claude Code reference adapter)
 
@@ -108,12 +103,12 @@ body. Its first line is `[AFKSwitch g<G>]` with the generation G from step 1, or
 ## 3. Hosts without native peer messaging
 
 Persist the state (step 1) and say that cross-session notification is not available in
-this host. Never add a daemon, server, database, polling loop, hook, or external service to emulate
+this host. Never add a daemon, server, database, polling loop, or external service to emulate
 it, and never imply another session was told.
 
 ## Report
 
-Never imply that a session knows the human is away when delivery was not confirmed.
+Claim peer awareness only after confirmed delivery.
 
 ```text
 AFK set (<context the helper returned>) · g<G> · discovered N · notified N · not notified N
@@ -134,8 +129,16 @@ context is `null`. Write `AFK already set` instead of `AFK set` when `"changed":
 Drop empty sections. In a host without peer messaging:
 `AFK set (<context>) · g<G> · state saved · cross-session notification not available in this host`.
 
-Sessions started after this `/afk`, or not reached now, are not notified; the saved state
-still lets any session's `/back` report the absence.
+Sessions started after this `/afk`, or not reached now, are not notified by this command;
+supported lifecycle hooks reconcile saved presence at the next boundary.
+
+## Session awareness
+
+Keep last_seen_generation, current presence and optional AFK context in session state.
+Apply a newer generation immediately on push, or reconcile at the next safe lifecycle
+boundary before meaningful work when the host supports sync. Ignore stale generations;
+a reset marker starts a new epoch. With no state, retain known presence; only `/back`
+ends AFK. Do not claim lifecycle sync when the adapter does not implement it.
 
 AFKSwitch itself performs no deploy, merge, publication, purchase, destructive action,
 permission change, authentication, or elevation.

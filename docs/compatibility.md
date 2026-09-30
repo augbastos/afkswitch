@@ -4,6 +4,20 @@ Only versions that were actually run are listed. Anything not run is **pending**
 assumed. The support levels themselves are in
 [`adapters/capabilities.json`](../adapters/capabilities.json).
 
+## AFKSwitch 0.6.0
+
+| Host | Version | What was run | Result |
+|---|---|---|---|
+| Claude Code | 2.1.285 | `claude plugin validate --strict .` and validation of `.claude-plugin/plugin.json` | passed; no login or model session |
+| Python | 3.14 | `conformance/hooks` with synthetic state and transcripts, including real CLI smoke checks | passed; read-only state hashes unchanged |
+
+The hook tests prove script behavior, not host installation or model compliance.
+End-to-end lifecycle injection in Claude Code, trusted Codex 0.159.0 plugins and
+Antigravity CLI 1.2.13 remains unverified. Codex's manifest override and `PLUGIN_ROOT`
+follow the [official packaging contract](https://developers.openai.com/plugins/build/plugins).
+Installing the plugin alone does not trust its hooks. No peer notification or fan-in
+is claimed for Codex or Antigravity.
+
 ## AFKSwitch 0.5.0
 
 | Host | Version | Where | What was run | Result |

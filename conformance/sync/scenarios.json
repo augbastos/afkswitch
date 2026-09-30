@@ -1,0 +1,42 @@
+{
+  "scenarios": [
+    {"name": "session-started-after-afk", "kind": "sync", "expect": "pass", "transcript": {
+      "sync_only": true, "last_seen_generation": 0,
+      "steps": [{"before_work": true, "state": {"generation": 30, "status": "afk", "context": "work"}, "action": "apply", "local": {"generation": 30, "status": "afk", "context": "work"}}]
+    }},
+    {"name": "newer-applied-stale-ignored", "kind": "sync", "expect": "pass", "transcript": {
+      "last_seen_generation": 30, "presence": "afk", "context": "sleep",
+      "steps": [
+        {"state": {"generation": 31, "status": "available", "context": null}, "action": "apply", "local": {"generation": 31, "status": "available", "context": null}},
+        {"state": {"generation": 30, "status": "afk", "context": "work"}, "action": "ignore-stale", "local": {"generation": 31, "status": "available", "context": null}},
+        {"state": {"generation": 31, "status": "available", "context": null}, "action": "repeat", "local": {"generation": 31, "status": "available", "context": null}}
+      ]
+    }},
+    {"name": "reset-epoch-and-missing-preserve-afk", "kind": "sync", "expect": "pass", "transcript": {
+      "last_seen_generation": 30, "presence": "afk", "context": "work",
+      "steps": [
+        {"state": {"generation": null, "reset": true}, "action": "reset-pending", "local": {"generation": 30, "status": "afk", "context": "work"}},
+        {"state": {"generation": 1, "status": "afk", "context": "sleep", "reset": true}, "action": "apply", "local": {"generation": 1, "status": "afk", "context": "sleep"}}
+      ]
+    }},
+    {"name": "skipped-reconciliation", "kind": "sync", "expect": "fail", "violations": ["SYNC_WRONG_ACTION", "SYNC_MISSING_BEFORE_WORK", "SYNC_LOCAL_MISMATCH"], "transcript": {
+      "last_seen_generation": 0,
+      "steps": [{"before_work": true, "state": {"generation": 30, "status": "afk", "context": "work"}, "action": "ignore-stale", "local": {"generation": 0, "status": "available", "context": null}}]
+    }},
+    {"name": "stale-applied", "kind": "sync", "expect": "fail", "violations": ["SYNC_WRONG_ACTION", "SYNC_LOCAL_MISMATCH"], "transcript": {
+      "last_seen_generation": 31, "presence": "available", "context": null,
+      "steps": [{"state": {"generation": 30, "status": "afk", "context": "work"}, "action": "apply", "local": {"generation": 30, "status": "afk", "context": "work"}}]
+    }},
+    {"name": "reset-ignored", "kind": "sync", "expect": "fail", "violations": ["SYNC_WRONG_ACTION"], "transcript": {
+      "last_seen_generation": 31, "presence": "available",
+      "steps": [{"state": {"generation": 1, "status": "afk", "context": "work", "reset": true}, "action": "ignore-stale", "local": {"generation": 31, "status": "available", "context": null}}]
+    }},
+    {"name": "sync-only-invents-delivery", "kind": "sync", "expect": "fail", "violations": ["SYNC_ONLY_OVERCLAIM"], "transcript": {
+      "sync_only": true, "sends": ["peer"], "requested": ["peer"], "steps": []
+    }},
+    {"name": "missing-file-infers-back", "kind": "sync", "expect": "fail", "violations": ["SYNC_LOCAL_MISMATCH"], "transcript": {
+      "last_seen_generation": 30, "presence": "afk", "context": "work",
+      "steps": [{"state": {"generation": null, "reset": true}, "action": "reset-pending", "local": {"generation": 30, "status": "available", "context": null}}]
+    }}
+  ]
+}

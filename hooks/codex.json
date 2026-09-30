@@ -1,0 +1,6 @@
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/scripts/presence_hook.py\" --host codex --event SessionStart", "timeout": 5}]}],
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "python3 \"${PLUGIN_ROOT}/scripts/presence_hook.py\" --host codex --event UserPromptSubmit", "timeout": 5}]}]
+  }
+}

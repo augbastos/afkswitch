@@ -6,14 +6,17 @@
 **Tell your agents when you're away. Tell them when you're back.**
 
 ```text
-/afk     I'm away from the machine
-/back    I'm here again
+/afk [optional context]     I'm physically away
+/back [optional context]    I'm physically present again
 ```
 
 Type `/afk` in one Claude Code session and every live Claude Code session on your machine that
 the host can reach is told; the report names any it could not reach. They keep working, set
 aside only what truly needs you, and are told never to treat your absence as permission. Type
 `/back` in any session and you get one summary: what needs you first, then what got done.
+
+Hosts share one presence contract; state, sync, notification and status collection depend on the adapter.
+Read-only lifecycle hooks sync presence at session start and prompt submission in Claude Code and trusted Codex plugins; Antigravity uses an ephemeral check before each invocation ([details](docs/details.md#lifecycle-sync)).
 
 ## Install
 
@@ -76,10 +79,12 @@ No reply yet
 ## Where it works
 
 <!-- capabilities:readme:start -->
-| Host | Level | What you get |
-|---|---|---|
-| Claude Code | Fan-in | Every live local session that the host confirms delivery to is told, and /back collects a status from each. |
-| OpenAI Codex | State-only | Your presence is saved. Codex gives the model no tool to message its other sessions, so they are not told. |
+| Host | State | Sync | Notify | Fan-in | Notes |
+|---|---|---|---|---|---|
+| Claude Code | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. |
+| Codex | yes | yes | no | no | SessionStart and UserPromptSubmit sync requires trusted hooks. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents is an interactive browser, without machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. |
+| Antigravity CLI | yes | yes | no | no | Read-only PreInvocation sync injects ephemeral AFK context. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. |
+| Generic local agent | yes | yes | no | no | Sync via the reference helper when the host calls check before each turn. |
 <!-- capabilities:readme:end -->
 
 Codex saves the state once `~/.afkswitch` is writable (see
@@ -91,19 +96,20 @@ AFKSwitch runs no server and makes no network requests of its own. Messages betw
 sessions travel through the host's own mechanisms and are governed by the host.
 
 - **Writes** one local file, `~/.afkswitch/state.json` (status, time, your optional note,
-  and a counter that orders changes), through a bundled Python script that only reads and
+  and a counter that orders changes; return context is event-only), through a bundled script that reads and
   writes that folder. A lock file appears there for milliseconds while it writes; an
   unreadable old file is kept beside it as `state.json.corrupt-<time>`.
 - **Sends**, in Claude Code only, short messages to your other Claude Code sessions on the
   same machine, using Claude Code's own messaging.
-- **Runs** nothing in the background: no hooks, daemon, server, or telemetry. The script runs
-  only when you type `/afk` or `/back`, and exits.
+- **Runs** nothing in the background: no daemon, server, or telemetry. Explicit commands
+  write state; lifecycle hooks read state and the session transcript tail, then exit.
 
 ## More
 
 [Details and limits](docs/details.md) · [Spec](spec/presence.md) ·
 [Compatibility](docs/compatibility.md) · [Writing an adapter](adapters/README.md) ·
 [Conformance tests](conformance/README.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Terms](TERMS.md) ·
+[Generic local agent](adapters/generic/README.md) · [Opt-in model evals](evals/README.md) ·
 [Support](SUPPORT.md) · [History](docs/history.md) · [Contributing](CONTRIBUTING.md)
 
 MIT licensed.
