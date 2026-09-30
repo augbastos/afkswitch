@@ -1,8 +1,8 @@
 {
   "name": "afkswitch",
   "displayName": "AFKSwitch",
-  "description": "AFKSwitch by augbastos\nTell your agents when you're away and when you're back.",
-  "version": "0.5.1",
+  "description": "AFKSwitch by augbastos — Tell your agents when you're away and when you're back.",
+  "version": "0.5.2",
   "author": {
     "name": "Augusto Bastos",
     "url": "https://github.com/augbastos"
