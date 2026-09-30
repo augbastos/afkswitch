@@ -4,7 +4,7 @@ Only versions that were actually run are listed. Anything not run is **pending**
 assumed. The support levels themselves are in
 [`adapters/capabilities.json`](../adapters/capabilities.json).
 
-## AFKSwitch 0.5.0 (unreleased)
+## AFKSwitch 0.5.0
 
 | Host | Version | Where | What was run | Result |
 |---|---|---|---|---|

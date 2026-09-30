@@ -1,4 +1,4 @@
-# AFKSwitch v0.5.0 (draft, not released)
+# AFKSwitch v0.5.0
 
 **Presence state can no longer be corrupted or overtaken by stale messages.**
 
