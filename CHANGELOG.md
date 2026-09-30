@@ -20,7 +20,8 @@ All notable changes to this project are documented here. Format follows
   ignores an older message. Status replies start with `afkswitch-status g<G>`, so a reply to
   an earlier `/back` is shown as late instead of being counted. Reports show `g<G>`.
 - Context over 2048 characters is refused with a clear message instead of being saved or
-  cut.
+  cut. The `/afk` skill tells the model to copy the context itself, never rebuild, shorten
+  or summarize it, and to stop when the helper refuses it.
 - A malformed state file is kept as `state.json.corrupt-<time>` before it is replaced; a
   state file from a newer AFKSwitch is never overwritten (`unsupported state version N`).
 - Privacy wording: "AFKSwitch runs no server and makes no network requests of its own.

@@ -24,9 +24,22 @@ with real model sessions on one machine:
 In Codex's `workspace-write` sandbox without a writable root for `~/.afkswitch`, the write
 was refused and the skill reported `state transition failed` without claiming anything.
 
-Still **pending** with real sessions: two sessions running `/afk` or `/back` at the same
-moment, and the 2048-character context limit. Both are covered by the conformance suite
-against the helper, not yet by a live model session.
+Then, with Claude Code 2.1.285 and disposable sessions:
+
+- **Two sessions at the same moment.** A harness held the state lock until both sessions'
+  helpers were waiting on it, then released it. `/afk work` + `/afk sleep` saved
+  generations 1 and 2 in turn; `/afk sleep` + `/back` from generation 1 saved 2 and 3.
+  The file stayed valid and the final state was the last writer's; each session reported
+  what it saved, and the one that was overtaken said so. **Passed.**
+- **Context limit.** 2048 characters were saved exactly; repeating them changed nothing.
+  2049 characters first exposed a defect: a model rebuilt a repetitive text with code, and
+  in another run cut a refused text to 2048 and retried. The `/afk` skill now forbids
+  both. After the change, four 2049-character runs (repetitive and natural text) left the
+  state file unchanged and reported that AFK was not set. **Passed.**
+
+Load limit: with six processes each running ten transitions back to back, a transition can
+wait longer than the helper's 15-second lock wait, and the helper refuses it with
+`state is busy`. No stress run left a corrupt file or a duplicate generation.
 
 ## AFKSwitch 0.4.x
 
