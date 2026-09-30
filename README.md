@@ -19,7 +19,10 @@ aside only what truly needs you, and are told never to treat your absence as per
 
 ### Claude Code
 
-Install directly from this GitHub repository:
+AFKSwitch is listed in the Claude plugin directory (Claude Code, Cowork, and the Claude
+apps): search for **AFKSwitch**. The directory can lag behind the latest release here.
+
+Or install directly from this GitHub repository:
 
 ```text
 /plugin marketplace add https://github.com/augbastos/afkswitch
