@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-09-30
+
+### Changed
+
+- The Claude plugin description now reads "AFKSwitch by augbastos" / "Tell your agents when you're away and when you're back." No behavior change.
+
 ## [0.5.0] - 2026-09-30
 
 ### Changed
