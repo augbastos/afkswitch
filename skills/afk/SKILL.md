@@ -55,6 +55,8 @@ Pass the context exactly as typed, as one literal argument: in POSIX shells insi
 quotes, writing each `'` as `'\''`; in PowerShell inside single quotes, doubling each `'`.
 Multi-line or hard-to-quote text may go on standard input instead, with `--context-stdin`
 and a quoted heredoc (`<<'AFKSWITCH_EOF'`) or a PowerShell literal here-string.
+Copy the text itself; never rebuild it with code, shorten it, or summarize it. If the helper
+refuses it, AFK is not set: report that and stop. Never retry with a different context.
 
 It prints one JSON line. Use only its fields in what follows:
 
