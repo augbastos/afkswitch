@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 
 TAIL_BYTES = 256 * 1024
-MARKER = re.compile(r"\[AFKSwitch g([1-9][0-9]*)( reset)?\]")
+MARKER = re.compile(r"\A(?:<cross-session-message[^>\n]*>\n)?\[AFKSwitch g([1-9][0-9]*)( reset)?\]\nstatus: (?:afk|available)\ncontext: ")
 HELPER_PATH = Path(__file__).resolve().parents[1] / "skills/afk/scripts/afkswitch_state.py"
 
 
@@ -28,6 +28,25 @@ def load_helper():
         sys.dont_write_bytecode = previous
 
 
+def transcript_strings(value):
+    """Walk message/attachment values, including JSON encoded in hook stdout."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from transcript_strings(item)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            if key == "stdout" and isinstance(item, str) and item.startswith("{"):
+                try:
+                    decoded = json.loads(item)
+                except ValueError:
+                    pass
+                else:
+                    yield from transcript_strings(decoded)
+            yield from transcript_strings(item)
+
+
 def last_marker(path):
     """Read at most the transcript tail; no transcript or checkpoint is written."""
     if not path:
@@ -37,8 +56,15 @@ def last_marker(path):
         transcript.seek(max(0, transcript.tell() - TAIL_BYTES))
         tail = transcript.read(TAIL_BYTES).decode("utf-8", errors="replace")
     last = None
-    for match in MARKER.finditer(tail):
-        last = match
+    for line in tail.splitlines():
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue  # Includes a partial JSONL record at the bounded tail's start.
+        for text in transcript_strings(record):
+            match = MARKER.match(text)
+            if match:
+                last = match  # Only the event header; carried context is opaque.
     return (int(last.group(1)), bool(last.group(2))) if last else (0, False)
 
 

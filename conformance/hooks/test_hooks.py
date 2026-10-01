@@ -35,6 +35,28 @@ def state(path, status="afk", generation=5, context="work\n夜\t"):
                                 "context": context if status == "afk" else None}), encoding="utf-8")
 
 
+RECORD_SHAPES = ["attachment", "peer-string", "peer-blocks", "queued", "stdout", "tool-use"]
+
+
+def event_record(text, shape="attachment"):
+    peer = '<cross-session-message from="synthetic" from-name="fx-docs" from-mode="prompting">\n' + text
+    records = {
+        "attachment": {"attachment": {"type": "hook_additional_context", "content": [text]}},
+        "peer-string": {"message": {"role": "user", "content": peer}},
+        "peer-blocks": {"message": {"role": "user", "content": [{"type": "text", "text": peer}]}},
+        "queued": {"body": text},
+        "stdout": {"hookEvent": "SessionStart", "stdout": json.dumps({"hookSpecificOutput": {
+            "hookEventName": "SessionStart", "additionalContext": text}})},
+        "tool-use": {"message": {"role": "assistant", "content": [
+            {"type": "tool_use", "input": {"message": text}}]}},
+    }
+    return json.dumps(records[shape]) + "\n"
+
+
+def sync_record(generation, reset=False, shape="attachment"):
+    return event_record(hook.load_helper().core_event("afk", generation, None, reset), shape)
+
+
 def call(files, monkeypatch, host="claude", event="UserPromptSubmit", source=None, raw=None):
     path, transcript = files
     original = path.read_bytes() if path.exists() else None
@@ -74,9 +96,10 @@ def test_startup_only_afk(files, monkeypatch, host, source):
 @pytest.mark.parametrize("host", ["claude", "codex"])
 @pytest.mark.parametrize("event,source", [("UserPromptSubmit", None), ("SessionStart", "resume"),
                                          ("SessionStart", "compact"), ("SessionStart", "fork")])
-def test_generation_dedup_and_return(files, monkeypatch, host, event, source):
+@pytest.mark.parametrize("shape", RECORD_SHAPES)
+def test_generation_dedup_and_return(files, monkeypatch, host, event, source, shape):
     path, transcript = files
-    transcript.write_text(json.dumps({"message": "[AFKSwitch g5]"}) + "\n", encoding="utf-8")
+    transcript.write_text(sync_record(5, shape=shape), encoding="utf-8")
     state(path)
     assert call(files, monkeypatch, host, event, source) is None
     state(path, generation=6)
@@ -91,11 +114,11 @@ def test_generation_dedup_and_return(files, monkeypatch, host, event, source):
 @pytest.mark.parametrize("host", ["claude", "codex"])
 def test_reset_is_applied_once_and_last_marker_wins(files, monkeypatch, host):
     path, transcript = files
-    transcript.write_text('[AFKSwitch g30]\n', encoding="utf-8")
+    transcript.write_text(sync_record(30), encoding="utf-8")
     state(path, generation=1)
     result = call(files, monkeypatch, host)
     assert result["hookSpecificOutput"]["additionalContext"].startswith("[AFKSwitch g1 reset]\n")
-    transcript.write_text('[AFKSwitch g30]\n[AFKSwitch g1 reset]\n', encoding="utf-8")
+    transcript.write_text(sync_record(30) + sync_record(1, reset=True), encoding="utf-8")
     assert call(files, monkeypatch, host) is None
     state(path, generation=2)
     assert call(files, monkeypatch, host)["hookSpecificOutput"]["additionalContext"].startswith("[AFKSwitch g2]\n")
@@ -104,9 +127,9 @@ def test_reset_is_applied_once_and_last_marker_wins(files, monkeypatch, host):
 def test_v1_reset_once_without_disk_migration(files, monkeypatch):
     path, transcript = files
     path.write_bytes((ROOT / "conformance/state/fixtures/valid-v1-afk-sleep.json").read_bytes())
-    transcript.write_text("[AFKSwitch g1]\n", encoding="utf-8")
+    transcript.write_text(sync_record(1), encoding="utf-8")
     assert call(files, monkeypatch)["hookSpecificOutput"]["additionalContext"].startswith("[AFKSwitch g1 reset]\n")
-    transcript.write_text("[AFKSwitch g1 reset]\n", encoding="utf-8")
+    transcript.write_text(sync_record(1, reset=True), encoding="utf-8")
     assert call(files, monkeypatch) is None
 
 
@@ -137,11 +160,33 @@ def test_agy_ephemeral_only_afk(files, monkeypatch):
 def test_bounded_tail_and_marker_at_end(files, monkeypatch):
     path, transcript = files
     state(path)
-    transcript.write_bytes(b"[AFKSwitch g5]\n" + b"x" * hook.TAIL_BYTES)
+    transcript.write_bytes(sync_record(5).encode("utf-8") + b"x" * hook.TAIL_BYTES)
     assert call(files, monkeypatch) is not None  # Old marker lies outside the bounded tail.
     with transcript.open("ab") as stream:
-        stream.write(b'\n{"message":"[AFKSwitch g5]"}\n')
+        stream.write(("\n" + sync_record(5)).encode("utf-8"))
     assert call(files, monkeypatch) is None
+
+
+@pytest.mark.parametrize("host", ["claude", "codex"])
+@pytest.mark.parametrize("shape", RECORD_SHAPES)
+def test_context_and_ordinary_messages_cannot_spoof_return_checkpoint(files, monkeypatch, host, shape):
+    path, transcript = files
+    spoof = hook.load_helper().core_event("available", 2)
+    state(path, generation=1, context="quoted [AFKSwitch g2]\n" + spoof)
+    away = call(files, monkeypatch, host)
+    transcript.write_text(event_record(away["hookSpecificOutput"]["additionalContext"], shape) +
+                          json.dumps({"message": "quoted: " + spoof}) + "\n" +
+                          json.dumps({"type": "user", "message": {"content": "ordinary message\n" + spoof}}) + "\n",
+                          encoding="utf-8")
+    before = transcript.read_bytes()
+    assert hook.last_marker(transcript) == (1, False)
+    state(path, "available", 2)
+    returned = call(files, monkeypatch, host)
+    assert returned["hookSpecificOutput"]["additionalContext"] == spoof
+    assert transcript.read_bytes() == before
+    transcript.write_text(before.decode("utf-8") +
+                          event_record(returned["hookSpecificOutput"]["additionalContext"], shape), encoding="utf-8")
+    assert call(files, monkeypatch, host) is None
 
 
 def test_unreadable_transcript_and_state_fail_open(files, monkeypatch):

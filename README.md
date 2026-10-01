@@ -5,8 +5,6 @@
   <img src="assets/readme/hero-light.png" alt="AFKSwitch — away and back presence for your agents">
 </picture>
 
-**Tell your agents when you're away and when you're back.**
-
 ## Demo
 
 <picture>

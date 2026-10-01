@@ -10,6 +10,24 @@ type Cache = {
   revision: number
 }
 
+// Mirror parse_since/context_problem/problems_v1/problems_v2 in the state helper.
+const validSince = (value: unknown): boolean => {
+  if (typeof value !== 'string') return false
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/.exec(value)
+  if (!parts || parts[0] !== value) return false
+  const [, y, m, d, h, minute, s, zone, oh, om] = parts
+  const year = Number(y), month = Number(m), day = Number(d)
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  return year >= 1 && month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1] &&
+    Number(h) < 24 && Number(minute) < 60 && Number(s) < 60 &&
+    (zone === 'Z' || Number(oh) * 60 + Number(om) < 1440)
+}
+
+const validContext = (value: unknown): boolean => value === null ||
+  (typeof value === 'string' && [...value].length <= 2048 &&
+    !/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\ud800-\udfff]/u.test(value))
+
 const readStatus = async ($: EngineInterface): Promise<Status | null> => {
   const override = await $.env.get('AFKSWITCH_STATE_DIR')
   const home = override ? undefined : (await $.env.get('HOME')) || (await $.env.get('USERPROFILE'))
@@ -20,9 +38,18 @@ const readStatus = async ($: EngineInterface): Promise<Status | null> => {
     const text = await $.fs.read(`${directory.replace(/[\\/]+$/, '')}/state.json`)
     const value: unknown = JSON.parse(text.replace(/^\uFEFF/, ''))
     if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
-    const state = value as { version?: unknown; status?: unknown }
-    return (state.version === 1 || state.version === 2) &&
-      (state.status === 'afk' || state.status === 'available') ? state.status : null
+    const state = value as Record<string, unknown>
+    const keys = state.version === 1
+      ? ['version', 'status', 'since', 'context']
+      : ['version', 'status', 'since', 'context', 'generation']
+    if (Object.keys(state).length !== keys.length || !keys.every(key => Object.hasOwn(state, key))) return null
+    if (state.version !== 1 && state.version !== 2) return null
+    if (state.status !== 'afk' && state.status !== 'available') return null
+    if (!validSince(state.since) || !validContext(state.context)) return null
+    if (state.version === 2 &&
+      (typeof state.generation !== 'number' || !Number.isInteger(state.generation) || state.generation < 1 ||
+        (state.status === 'available' && state.context !== null))) return null
+    return state.status
   } catch {
     // Missing, unreadable, malformed and future state are neutral, never present.
     return null

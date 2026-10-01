@@ -7,7 +7,10 @@ const PROPS = {
   scroll: { offset: 0, bodyRows: 6 }, view: {},
 }
 const BASE = { type: 'Text' as const, props: {}, children: ['existing band'] }
-const state = (status: string, version = 2) => JSON.stringify({ version, status })
+const state = (status: string, version = 2) => JSON.stringify({
+  version, status, since: '2026-09-30T12:00:00Z', context: null,
+  ...(version === 1 ? {} : { generation: 1 }),
+})
 type Disk = { raw: string | null; reads: string[] }
 
 const setup = (on: On, raw: string | null, variables = { AFKSWITCH_STATE_DIR: '/test-state' }): Disk => {
@@ -192,7 +195,7 @@ test('unexpected lifecycle errors continue every boundary unchanged', async ($, 
   expect(calls).toBe(3)
 })
 
-for (const raw of ['not json', '[]', 'null', state('other'), state('available', 0), state('afk', 1.5)]) {
+for (const raw of ['not json', '[]', 'null', '{"version":2,"status":"available"}', state('other'), state('available', 0), state('afk', 1.5)]) {
   test(`invalid drawing fields stay neutral: ${raw}`, async ($, on) => {
     setup(on, raw)
     const ui = await mount($)
