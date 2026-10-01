@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-10-02
+
+### Changed
+
+- The switch module no longer names a local variable `h`, the name JSX compiles to; the plugin directory's policy check blocked 0.6.0 and 0.6.1 for it. No behavior change.
+
 ## [0.6.1] - 2026-10-02
 
 ### Changed
