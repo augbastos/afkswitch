@@ -1,6 +1,6 @@
 {
   "name": "afkswitch",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Tell AI agents when their human operator is physically away and when they are back.",
   "author": {
     "name": "Augusto Bastos",

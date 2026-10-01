@@ -4,6 +4,28 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] (0.6.0)
+
+### Added
+
+- `/back [optional context]` returns opaque event context while available state keeps context null.
+- Independent state, sync, notify and fanIn capabilities; a one-shot generic local-agent sync reference.
+- Session awareness, portable event blocks, sync and cross-host conformance, and opt-in local model evals.
+- Read-only SessionStart and UserPromptSubmit hooks for Claude Code; experimental Codex hooks and a static Antigravity PreInvocation adapter.
+- Compact terminal AFK switch above the Claude Code prompt on builds with function hooks; clicks invoke the existing explicit skills with no context and confirmed state remains the only truth.
+- The switch requires loading via `--plugin-dir` or `CLAUDE_CODE_PLUGIN_DIRS`; directory and marketplace installs retain text skills and read-only sync hooks, but cannot load the switch until Anthropic enables modules for installed plugins.
+- Function-hooks UI tests for known/unknown states, captured click intent, concurrency and failures; visualSwitch and visualSwitchSurfaces capability declarations.
+
+### Changed
+
+- Reject unsafe controls, ESC sequences, CR/CRLF and lone surrogates; allow LF/tab and preserve stdin verbatim.
+- Each skill ships a byte-identical standalone helper. `sleep` and `work` are ordinary context, not presets.
+- Presence remains separate from reachability, permission and agent execution; only `/back` ends AFK, without timeout.
+- State protocol remains v2, including existing reset and migration semantics. All plugin manifests now declare 0.6.0.
+- Conformance fixture matrices invoke the real helper entry point in-process; subprocess CLI smoke tests and the lock-removal concurrency mutation remain.
+- Remove Codex hook pointers from default manifests; Codex and Antigravity sync=false until verified in a live host. Experimental hook files still ship.
+- Package and validate the function-hooks module alongside command hooks; exclude UI tests from the archive. Capability tables in details, spec and adapter docs include visual support; the root README remains unchanged in this change.
+
 ## [0.5.2] - 2026-09-30
 
 ### Changed

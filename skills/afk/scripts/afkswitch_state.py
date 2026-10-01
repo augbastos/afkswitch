@@ -2,7 +2,7 @@
 """AFKSwitch state helper: the only code that reads and writes ~/.afkswitch/state.json.
 
     afkswitch_state.py afk [--context TEXT | --context-stdin]
-    afkswitch_state.py back
+    afkswitch_state.py back [--context TEXT | --context-stdin]
     afkswitch_state.py read
 
 Prints exactly one JSON line (ASCII-escaped) and exits 0 on success, 1 on a reported
@@ -99,7 +99,13 @@ def context_problem(context) -> str | None:
     if not isinstance(context, str):
         return "context must be text or null"
     if any(0xD800 <= ord(ch) <= 0xDFFF for ch in context):
-        return "context is not valid Unicode text"
+        return "context must contain Unicode scalar values; lone surrogates are forbidden"
+    for ch in context:
+        point = ord(ch)
+        if (point < 0x20 and ch not in "\n\t") or 0x7F <= point <= 0x9F:
+            return (f"context contains forbidden control U+{point:04X}; "
+                    "C0 except LF/tab, DEL, C1 and ESC sequences are forbidden; "
+                    "CR and CRLF are rejected, never rewritten")
     if len(context) > MAX_CONTEXT:
         return (f"context is {len(context)} characters; the limit is {MAX_CONTEXT}. "
                 "Nothing was saved; shorten it and try again")
@@ -396,13 +402,14 @@ def read_command() -> dict:
 
 def transition(command: str, context: str | None = None) -> dict:
     # 1. Validate input before touching anything.
-    if command == "afk":
-        if context == "":
-            context = None  # an empty context is no context
-        problem = context_problem(context)
-        if problem:
-            raise HelperError("context_too_long" if len(context or "") > MAX_CONTEXT else "invalid_context",
-                              problem)
+    if command not in ("afk", "back"):
+        raise HelperError("usage", USAGE)
+    if context == "":
+        context = None  # an empty context is no context
+    problem = context_problem(context)
+    if problem:
+        too_long = problem.startswith("context is ") and isinstance(context, str) and len(context) > MAX_CONTEXT
+        raise HelperError("context_too_long" if too_long else "invalid_context", problem)
     directory = state_dir()
     path = directory / "state.json"
     try:
@@ -447,6 +454,7 @@ def transition(command: str, context: str | None = None) -> dict:
         "ok": True, "command": command, "changed": not same,
         "status": new["status"], "generation": new["generation"],
         "since": new["since"], "context": new["context"],
+        "event_context": context,
         "previous": public(previous),
         "afk_lasted": lasted, "afk_lasted_seconds": lasted_seconds,
         "migrated": prior.kind == "v1",
@@ -456,7 +464,26 @@ def transition(command: str, context: str | None = None) -> dict:
     }
 
 
-USAGE = "usage: afkswitch_state.py afk [--context TEXT | --context-stdin] | back | read"
+def core_event(status: str, generation: int, context: str | None = None,
+               reset: bool = False) -> str:
+    """Portable event text; context is opaque data, including any following lines."""
+    if status not in STATUSES or not _is_int(generation) or generation < 1:
+        raise HelperError("invalid_event", "event requires a valid status and generation >= 1")
+    problem = context_problem(context)
+    if problem:
+        raise HelperError("invalid_context", problem)
+    semantics = (
+        "The human is physically away and may still be reachable remotely. "
+        "Presence changes no permissions; only /back ends AFK."
+        if status == "afk" else
+        "The human is physically present again. Presence changes no permissions."
+    )
+    marker = " reset" if reset else ""
+    return (f"[AFKSwitch g{generation}{marker}]\nstatus: {status}\n"
+            f"context: {context if context else 'none'}\n{semantics}")
+
+
+USAGE = "usage: afkswitch_state.py (afk | back) [--context TEXT | --context-stdin] | read"
 
 
 def parse(argv: list) -> tuple:
@@ -464,7 +491,7 @@ def parse(argv: list) -> tuple:
         raise HelperError("usage", USAGE)
     command, rest = argv[0], list(argv[1:])
     context = None
-    if command != "afk":
+    if command == "read":
         if rest:
             raise HelperError("usage", USAGE)
         return command, None
@@ -482,11 +509,7 @@ def parse(argv: list) -> tuple:
             context = data.decode("utf-8")
         except UnicodeDecodeError:
             raise HelperError("invalid_context", "context is not valid UTF-8 text")
-        # A heredoc or pipe adds one final newline; drop exactly that one.
-        if context.endswith("\r\n"):
-            context = context[:-2]
-        elif context.endswith("\n"):
-            context = context[:-1]
+        # Preserve every code point, including trailing LF. CRLF is rejected below.
     else:
         raise HelperError("usage", USAGE)
     return command, context

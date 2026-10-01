@@ -1,0 +1,28 @@
+{
+  "scenarios": [
+    {"name": "A-afk-B-sync-C-back-A-sync", "kind": "cross-host", "expect": "pass", "transcript": {
+      "initial": {"version": 2, "generation": 29, "status": "available", "context": null, "since": "2099-01-01T00:00:00Z"},
+      "steps": [
+        {"op": "write", "host": "A", "command": "afk", "context": "  work\n夜\t", "state": {"generation": 30, "status": "afk", "context": "  work\n夜\t", "changed": true, "reset": false}},
+        {"op": "sync", "host": "B", "before_work": true, "action": "apply", "local": {"generation": 30, "status": "afk", "context": "  work\n夜\t"}},
+        {"op": "write", "host": "C", "command": "back", "context": "café / ready\n\tto review", "state": {"generation": 31, "status": "available", "context": null, "event_context": "café / ready\n\tto review", "changed": true, "reset": false}},
+        {"op": "sync", "host": "A", "before_work": true, "action": "apply", "local": {"generation": 31, "status": "available", "context": null}},
+        {"op": "push", "host": "B", "state": {"generation": 30, "status": "afk", "context": "  work\n夜\t"}, "action": "repeat", "local": {"generation": 30, "status": "afk", "context": "  work\n夜\t"}},
+        {"op": "sync", "host": "B", "action": "apply", "local": {"generation": 31, "status": "available", "context": null}},
+        {"op": "push", "host": "B", "state": {"generation": 30, "status": "afk", "context": "work"}, "action": "ignore-stale", "local": {"generation": 31, "status": "available", "context": null}}
+      ]
+    }},
+    {"name": "clock-used-instead-of-generation", "kind": "cross-host", "expect": "fail", "violations": ["CROSS_HOST_ORDER"], "transcript": {
+      "initial": {"generation": 29, "status": "available", "context": null},
+      "steps": [{"op": "write", "host": "A", "command": "afk", "context": "work", "state": {"generation": 1, "status": "afk", "context": "work", "changed": true, "reset": false}}]
+    }},
+    {"name": "back-context-written-durably-and-lost-in-event", "kind": "cross-host", "expect": "fail", "violations": ["BACK_DURABLE_CONTEXT", "BACK_EVENT_CONTEXT"], "transcript": {
+      "initial": {"generation": 30, "status": "afk", "context": "work"},
+      "steps": [{"op": "write", "host": "C", "command": "back", "context": "ready", "state": {"generation": 31, "status": "available", "context": "ready", "event_context": null, "changed": true}}]
+    }},
+    {"name": "host-misses-other-host-write", "kind": "cross-host", "expect": "fail", "violations": ["CROSS_HOST_STALE_READ"], "transcript": {
+      "initial": {"generation": 31, "status": "available", "context": null},
+      "steps": [{"op": "sync", "host": "B", "state": {"generation": 30, "status": "afk", "context": "work"}, "action": "apply", "local": {"generation": 30, "status": "afk", "context": "work"}}]
+    }}
+  ]
+}

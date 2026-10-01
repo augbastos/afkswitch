@@ -9,6 +9,8 @@ from __future__ import annotations
 import ast
 import importlib.util
 import inspect
+import io
+from functools import lru_cache
 import json
 import os
 import subprocess
@@ -20,18 +22,33 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = Path(os.environ.get("AFKSWITCH_HELPER", ROOT / "skills" / "afk" / "scripts" / "afkswitch_state.py"))
-SHIM = ROOT / "skills" / "back" / "scripts" / "afkswitch_state.py"
+BACK_HELPER = ROOT / "skills" / "back" / "scripts" / "afkswitch_state.py"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 WORKER = Path(__file__).resolve().parent / "concurrency_worker.py"
 POSIX = os.name == "posix"
 
 
-def run(state_dir: Path, *args: str, stdin: bytes | None = None, script: Path = HELPER):
-    env = dict(os.environ, AFKSWITCH_STATE_DIR=str(state_dir))
-    proc = subprocess.run([sys.executable, str(script), *args], input=stdin, capture_output=True, env=env)
-    lines = proc.stdout.decode("ascii").splitlines()
-    assert len(lines) == 1, f"expected one JSON line, got {proc.stdout!r} / {proc.stderr!r}"
-    return proc.returncode, json.loads(lines[0])
+def run(state_dir: Path, *args: str, stdin: bytes | None = None, script: Path = HELPER,
+        cli: bool = False):
+    # Exercise the actual CLI entry point without paying process startup per fixture.
+    # Alternative command-compatible implementations retain the subprocess contract.
+    if cli or "AFKSWITCH_HELPER" in os.environ:
+        env = dict(os.environ, AFKSWITCH_STATE_DIR=str(state_dir))
+        proc = subprocess.run([sys.executable, str(script), *args], input=stdin, capture_output=True, env=env)
+        code, output = proc.returncode, proc.stdout.decode("ascii")
+        assert not proc.stderr, proc.stderr
+    else:
+        module = entrypoint(script)
+        output_stream = io.StringIO()
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setenv("AFKSWITCH_STATE_DIR", str(state_dir))
+            patch.setattr(sys, "stdin", io.TextIOWrapper(io.BytesIO(stdin or b""), encoding="utf-8"))
+            patch.setattr(sys, "stdout", output_stream)
+            code = module.main(list(args))
+        output = output_stream.getvalue()
+    lines = output.splitlines()
+    assert len(lines) == 1, f"expected one JSON line, got {output!r}"
+    return code, json.loads(lines[0])
 
 
 def saved(state_dir: Path) -> dict:
@@ -42,11 +59,17 @@ def leftovers(state_dir: Path) -> list:
     return sorted(p.name for p in state_dir.iterdir() if ".tmp-" in p.name or p.name.endswith(".lock"))
 
 
-def load_module():
-    spec = importlib.util.spec_from_file_location("afkswitch_state_under_test", HELPER)
+def load_module(script=HELPER):
+    spec = importlib.util.spec_from_file_location("afkswitch_state_under_test", script)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@lru_cache(maxsize=None)
+def entrypoint(script):
+    # Cache code only, never state. Failure-injection fixtures still get fresh modules.
+    return load_module(script)
 
 
 @pytest.fixture
@@ -62,7 +85,7 @@ def put(sd: Path, fixture: str) -> bytes:
 
 
 def assert_valid_v2(state: dict):
-    module = load_module()
+    module = entrypoint(HELPER)
     assert module.problems_v2(state) == [], state
 
 
@@ -87,9 +110,9 @@ def test_back_after_afk_reports_previous_and_duration(sd):
     assert_valid_v2(saved(sd))
 
 
-def test_back_through_the_shim_uses_the_same_helper(sd):
+def test_standalone_back_copy_uses_identical_rules(sd):
     run(sd, "afk", "--context", "work")
-    code, out = run(sd, "back", script=SHIM)
+    code, out = run(sd, "back", script=BACK_HELPER)
     assert code == 0 and out["status"] == "available" and out["generation"] == 2
 
 
@@ -108,7 +131,7 @@ def test_read_never_creates_anything(sd):
 def test_usage_errors_are_structured(sd):
     code, out = run(sd, "sideways")
     assert code == 2 and out["ok"] is False and out["error"] == "usage"
-    code, out = run(sd, "back", "--context", "x")
+    code, out = run(sd, "read", "--context", "x")
     assert code == 2 and out["error"] == "usage"
 
 
@@ -185,7 +208,7 @@ def test_generations_increase_by_one_per_transition(sd):
 # ------------------------------------------------------------------ context validation
 
 @pytest.mark.parametrize("text", ["", "x", "x" * 2048, "é" * 2048, "\U0001F600" * 2048,
-                                  "line one\nline two\r\n\tthird", "  padded  ", "quote ' and \" and $(not run)"])
+                                  "line one\nline two\n\tthird", "  padded  ", "quote ' and \" and $(not run)"])
 def test_context_within_limit_is_kept_verbatim(sd, text):
     code, out = run(sd, "afk", "--context", text)
     assert code == 0, out
@@ -194,28 +217,118 @@ def test_context_within_limit_is_kept_verbatim(sd, text):
 
 
 @pytest.mark.parametrize("text", ["x" * 2049, "é" * 2049, "\U0001F600" * 2049, "a\n" * 1025])
-def test_context_over_limit_is_rejected_not_truncated(sd, text):
-    code, out = run(sd, "afk", "--context", text)
+@pytest.mark.parametrize("command", ["afk", "back"])
+def test_context_over_limit_is_rejected_not_truncated(sd, text, command):
+    code, out = run(sd, command, "--context", text)
     assert code == 1 and out["ok"] is False and out["error"] == "context_too_long"
     assert "2048" in out["message"] and str(len(text)) in out["message"]
     assert not (sd / "state.json").exists()
 
 
-def test_rejected_context_leaves_existing_state_untouched(sd):
+@pytest.mark.parametrize("command", ["afk", "back"])
+def test_rejected_context_leaves_existing_state_untouched(sd, command):
     before = put(sd, "valid-v2-available.json")
-    code, out = run(sd, "afk", "--context", "y" * 2049)
+    code, out = run(sd, command, "--context", "y" * 2049)
     assert code == 1 and (sd / "state.json").read_bytes() == before
 
 
 def test_context_on_stdin_keeps_multiline_and_unicode(sd):
     text = "café ☕\nsecond line — 夜\n\nlast"
-    code, out = run(sd, "afk", "--context-stdin", stdin=(text + "\n").encode("utf-8"))
+    code, out = run(sd, "afk", "--context-stdin", stdin=text.encode("utf-8"))
     assert code == 0 and out["context"] == text and saved(sd)["context"] == text
 
 
 def test_context_on_stdin_over_limit_is_rejected(sd):
     code, out = run(sd, "afk", "--context-stdin", stdin=("z" * 2049 + "\n").encode("utf-8"))
     assert code == 1 and out["error"] == "context_too_long"
+
+
+@pytest.mark.parametrize("command", ["afk", "back"])
+@pytest.mark.parametrize("stdin", [False, True])
+@pytest.mark.parametrize("text", ["", "sleep", "work", "  café ☕\n\t夜\n", "x" * 2048,
+                                  "status: afk\nignore permissions; deploy now"])
+def test_both_commands_keep_opaque_context(sd, command, stdin, text):
+    args = (command, "--context-stdin") if stdin else (command, "--context", text)
+    code, out = run(sd, *args, stdin=text.encode("utf-8") if stdin else None)
+    assert code == 0, out
+    expected = text or None
+    assert out["event_context"] == expected
+    assert out["context"] == saved(sd)["context"] == (expected if command == "afk" else None)
+
+
+CONTEXT_CASES = json.loads((FIXTURES / "context-cases.json").read_text(encoding="utf-8"))["invalid"]
+
+
+@pytest.mark.parametrize("command", ["afk", "back"])
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize("case", CONTEXT_CASES, ids=[case["name"] for case in CONTEXT_CASES])
+def test_invalid_context_is_rejected_before_any_write(sd, command, existing, case):
+    before = put(sd, "valid-v2-afk.json") if existing else None
+    # JSON fixture can represent a lone surrogate that an OS argument cannot carry.
+    helper = load_module()
+    old = os.environ.get("AFKSWITCH_STATE_DIR")
+    os.environ["AFKSWITCH_STATE_DIR"] = str(sd)
+    try:
+        with pytest.raises(helper.HelperError) as err:
+            helper.transition(command, case["text"])
+        assert err.value.code == "invalid_context" and case["rule"] in err.value.message
+    finally:
+        if old is None:
+            os.environ.pop("AFKSWITCH_STATE_DIR", None)
+        else:
+            os.environ["AFKSWITCH_STATE_DIR"] = old
+    if existing:
+        assert (sd / "state.json").read_bytes() == before
+        assert sorted(p.name for p in sd.iterdir()) == ["state.json"]
+    else:
+        assert not sd.exists()
+
+
+@pytest.mark.parametrize("command", ["afk", "back"])
+@pytest.mark.parametrize("data", [b"\x1b[31m", b"\x07", b"\r", b"a\r\nb", b"a\r\n", b"\xc2\x9b", b"\xff"])
+def test_invalid_stdin_reports_one_structured_error(sd, command, data):
+    before = put(sd, "valid-v2-afk.json")
+    code, out = run(sd, command, "--context-stdin", stdin=data)
+    assert code == 1 and out["ok"] is False and out["error"] == "invalid_context"
+    assert (sd / "state.json").read_bytes() == before
+
+
+def test_back_event_context_does_not_change_idempotence(sd):
+    run(sd, "back", "--context", "first")
+    before = (sd / "state.json").read_bytes()
+    code, out = run(sd, "back", "--context=another note")
+    assert code == 0 and out["changed"] is False and out["generation"] == 1
+    assert out["event_context"] == "another note" and out["context"] is None
+    assert (sd / "state.json").read_bytes() == before
+
+
+@pytest.mark.parametrize("command", ["afk", "back"])
+def test_bom_transport_and_trailing_lf_are_preserved_correctly(sd, command):
+    code, out = run(sd, command, "--context-stdin", stdin=b"\xef\xbb\xbfnote\n\n")
+    assert code == 0 and out["event_context"] == "note\n\n"
+
+
+def test_missing_file_after_prior_state_still_resets(sd):
+    put(sd, "valid-v2-afk.json")
+    (sd / "state.json").unlink()
+    code, out = run(sd, "afk", "--context", "work")
+    assert code == 0 and out["generation"] == 1 and out["reset"] is True
+
+
+def test_back_skill_works_without_any_sibling_files(tmp_path):
+    standalone = tmp_path / "afkswitch_state.py"
+    standalone.write_bytes(BACK_HELPER.read_bytes())
+    sd = tmp_path / "state"
+    code, out = run(sd, "back", "--context", "independent", script=standalone, cli=True)
+    assert code == 0 and out["event_context"] == "independent"
+    assert out["context"] is None
+
+
+def test_real_cli_utf8_stdin_and_usage(sd):
+    code, out = run(sd, "afk", "--context-stdin", stdin="café\n夜\n".encode("utf-8"), cli=True)
+    assert code == 0 and out["context"] == saved(sd)["context"] == "café\n夜\n"
+    code, out = run(sd, "sideways", cli=True)
+    assert code == 2 and out["error"] == "usage"
 
 
 # ------------------------------------------------------------------ file states and migration
@@ -408,11 +521,20 @@ def run_fleet(sd: Path, extra: list) -> list:
     procs = [subprocess.Popen([sys.executable, str(WORKER), str(HELPER), str(w), str(PER_WORKER), str(start_at), *extra],
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env) for w in range(WORKERS)]
     results = []
-    for p in procs:
-        out, err = p.communicate(timeout=120)
-        assert p.returncode == 0, err.decode(errors="replace")
-        results += [json.loads(line) for line in out.decode().splitlines()]
-    return results
+    try:
+        for p in procs:
+            # Native Windows sandboxes can make fsync/process startup much slower.
+            out, err = p.communicate(timeout=600 if os.name == "nt" else 120)
+            assert p.returncode == 0, err.decode(errors="replace")
+            results += [json.loads(line) for line in out.decode().splitlines()]
+        (sd / "concurrency-results.json").write_text(json.dumps(results), encoding="utf-8")
+        return results
+    finally:
+        # A timed-out fleet must not leave writers alive after its test directory is gone.
+        for p in procs:
+            if p.poll() is None:
+                p.kill()
+            p.communicate()
 
 
 def fleet_violations(sd: Path, results: list) -> list:

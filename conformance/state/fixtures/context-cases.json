@@ -1,0 +1,14 @@
+{
+  "invalid": [
+    {"name": "ESC-sequence", "text": "\u001b[31m", "rule": "U+001B"},
+    {"name": "bell", "text": "\u0007", "rule": "U+0007"},
+    {"name": "null", "text": "\u0000", "rule": "U+0000"},
+    {"name": "CR", "text": "\r", "rule": "U+000D"},
+    {"name": "CRLF", "text": "line\r\nline", "rule": "CRLF"},
+    {"name": "DEL", "text": "\u007f", "rule": "U+007F"},
+    {"name": "C1-start", "text": "\u0080", "rule": "U+0080"},
+    {"name": "C1-CSI", "text": "\u009b", "rule": "U+009B"},
+    {"name": "C1-end", "text": "\u009f", "rule": "U+009F"},
+    {"name": "surrogate", "text": "\ud800", "rule": "lone surrogates"}
+  ]
+}

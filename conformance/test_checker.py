@@ -12,7 +12,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import checker  # noqa: E402
 
-FILES = [HERE / "notify" / "scenarios.json", HERE / "fan-in" / "scenarios.json"]
+FILES = [HERE / kind / "scenarios.json" for kind in ("notify", "fan-in", "sync", "cross-host")]
 SCENARIOS = [s for f in FILES for s in json.loads(f.read_text(encoding="utf-8"))["scenarios"]]
 
 
@@ -28,7 +28,7 @@ def test_example_transcript_gets_its_declared_verdict(scenario):
 
 
 def test_every_level_has_passing_and_failing_examples():
-    for kind in ("notify", "fan-in"):
+    for kind in ("notify", "fan-in", "sync", "cross-host"):
         verdicts = {s["expect"] for s in SCENARIOS if s["kind"] == kind}
         assert verdicts == {"pass", "fail"}
 

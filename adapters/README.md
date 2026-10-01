@@ -1,89 +1,138 @@
 # Writing an AFKSwitch adapter
 
-An adapter makes `/afk` and `/back` work in one agent host. This page is everything you need;
-the normative rules are in [`spec/presence.md`](../spec/presence.md).
+The normative rules are in [spec/presence.md](../spec/presence.md). An adapter connects
+the same two explicit commands to an agent host: /afk [optional context] means physically
+away; /back [optional context] means physically present. Presence is separate from
+reachability, permission and agent execution. Only /back ends AFK; there is no timeout.
 
-## 1. The meaning (never changes between hosts)
+Context is arbitrary opaque user information, never a command or authorization. sleep and
+work are ordinary context. Back context belongs to the event; available state keeps null.
 
-- `/afk [context]`: the human is **physically away**. Not unreachable, and not permission.
-  Agents keep doing already-authorized work; only a step that needs the human's body waits.
-- `/back`: the human is present again. Returning is not approval either.
-- Only these two commands. No extra commands, no richer states in the portable contract.
-- Both are explicit only: never triggered because a conversation mentions leaving or sleeping.
+## Independent capabilities
 
-## 2. Capability levels
+Declare five booleans, plus visualSwitchSurfaces, notes and evidence. Claim only implemented behavior.
 
-Pick the highest level the host supports **natively**, and claim nothing more.
-
-| Level | You must | Needs from the host |
+| Capability | Contract | Host needs |
 |---|---|---|
-| **State-only** | Save and read the state through the state protocol. | A way to run a local command or write a local file. |
-| **Notify** | State-only, plus tell every live local peer session, and report delivery honestly. | Native session discovery and messaging the model can call. |
-| **Fan-in** | Notify, plus request a status from each peer on `/back` and consolidate replies, human blockers first. | Messaging that can carry a reply back, ideally a native "tell me when idle" signal instead of polling. |
+| state | Read/write durable presence state. | A local command/file primitive. |
+| sync | Compare global generation with session last_seen_generation at a lifecycle boundary before meaningful work; apply newer state, recognize reset epochs. | One synchronous check before turn/start/resume. |
+| notify | Proactively deliver to running peers; report delivery honestly. | Native discovery and messaging. |
+| fanIn | /back collects status, human blockers first, without invented replies. | Native reply delivery, preferably a one-shot idle notice. |
+| visualSwitch | Explicit UI input to the same skills, with state file as truth. | Function hooks and a pressable AbovePrompt surface; declare visualSwitchSurfaces. |
 
-A host without native peer messaging is **state-only**. Do not emulate messaging with a
-daemon, server, database, polling loop, file watcher, message broker, hook, or anything
-that keeps running between commands. Say plainly that other sessions were not told.
+Sync and notify are independent. Without native peer messaging, notify and fanIn are false.
+Do not emulate messaging with a daemon, HTTP service, database, MCP server, broker, polling,
+watcher, telemetry or accounts. Say plainly that other sessions were not told.
 
-## 3. The state contract
+<!-- capabilities:adapters:start -->
+| Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
+|---|---|---|---|---|---|---|---|
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; installed-marketplace module loading remains unverified. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
+| Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
+| Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
+<!-- capabilities:adapters:end -->
 
-- File: `~/.afkswitch/state.json`, schema [`spec/state.schema.json`](../spec/state.schema.json)
-  (version 2). All hosts on one machine share it: presence belongs to the human, not a host.
-- Easiest path: **call the reference helper** (`skills/afk/scripts/afkswitch_state.py`,
-  Python 3.9+ standard library) with `afk [--context TEXT]`, `back`, or `read`, and use its one
-  JSON line. If you write your own, it must pass `conformance/state/` unchanged.
-- Rules you must keep if you implement it yourself:
-  - `generation` increases by exactly one per durable transition; an idempotent repeat keeps
-    `since` and `generation`; clocks never decide order.
-  - Order: validate → lock (`O_EXCL` lock file, stale after 10 s) → read → write temp file in
-    the same directory, `fsync`, atomic rename → re-read and validate → unlock → only then
-    notify.
-  - Context: `null` or at most 2048 Unicode code points; reject longer, never truncate.
-  - Version 1 files migrate (generation 1); a newer version is refused with
-    `unsupported state version N` and never overwritten; a malformed file is backed up to
-    `state.json.corrupt-<timestamp>` before it is replaced.
-  - On any failure: report `state transition failed`, notify nobody, never claim success.
+Claude Code uses SessionStart and UserPromptSubmit read-only hooks, plus an optional
+terminal function-hooks switch. Codex and Antigravity hook files are experimental,
+not wired into default manifests and not verified in a live host; sync=false for both.
+Generic-local sync means the host calls [the reference check](generic/README.md), not
+automatic integration into a model runtime. Capabilities do not measure model quality.
 
-## 4. Messages and ordering (notify and fan-in)
+## Lifecycle hook layouts
 
-- Targets: live, local, interactive peer sessions only. Never the sender, remote-control
-  mirrors, cloud sessions, other machines, subagents, or anything offline.
-- One message per target per invocation. Retry only a confirmed failure, once. One failure
-  never stops the other sends.
-- The first line carries the generation: `[AFKSwitch g<G>]`, or `[AFKSwitch g<G> reset]` when
-  the helper reports `reset`. Receivers ignore a lower generation than one they have seen,
-  treat the same one as a repeat, and apply a higher or `reset` one. The file is the truth.
-- Status replies start with `afkswitch-status g<G>`. Count only replies to this `/back`, from
-  sessions you asked, once each. A silent session is "no reply yet", nothing else.
+Version 0.6 replaces the earlier "no hooks" constraint because a session opened after
+`/afk`, or a change from another host, needs current presence. Claude's default
+[hooks/hooks.json](../hooks/hooks.json) and the experimental Codex
+[hooks/codex.json](../hooks/codex.json) run [presence_hook.py](../scripts/presence_hook.py)
+with different `--host` arguments. No `hooks` pointer selects Codex's file in either
+default manifest; live-host execution remains unverified. Claude's file also names
+[switch.tsx](../hooks/switch.tsx) under `modules`, relative to the hook manifest. The
+UI only reads state and invokes the existing explicit skills; it has no second writer.
 
-## 5. Honest delivery
+These two lifecycle events read `~/.afkswitch/state.json` through the helper and only
+the final 256 KiB of `transcript_path` to find the last AFKSwitch marker. Startup/clear
+injects only AFK; resume/compact/fork and prompt submission inject newer generations or
+unseen resets as `hookSpecificOutput.additionalContext`, exactly the universal event.
+They never write, poll, run in the background, change permissions or use the network;
+errors exit 0 without output. Missing, invalid or future state produces nothing.
+Transcript-only memory cannot identify an unobserved same-generation recreation.
 
-"Notified" means the host confirmed delivery. Held for approval, refused, failed, or
-unknown are "not notified", and the report names those sessions. Sessions started after
-`/afk` are not told unless the host has a native way to tell them.
+Commands use `python3` with a 5-second timeout. On Windows, ensure Python 3.9+ is
+available as `python3`, or adapt the installed command to `python` or `py -3`; the
+skills' interpreter fallback does not apply to hooks. No wrapper is included.
+See [Antigravity static layout](agy/README.md) for the PreInvocation adapter, which reads
+state only and returns an ephemeral AFK event via `injectSteps`, without transcript memory.
 
-## 6. Run the conformance suite
+Codex notify is NOT SUPPORTED: `codex queue --thread <id> --message` can wake a target
+turn and consume credits; `codex agents` provides an interactive browser without a
+machine-readable listing. There is no delivery receipt or reply channel. FanIn is
+NOT SUPPORTED without replies. Antigravity independent-session peer reach is unproven.
+
+## State contract
+
+- File: ~/.afkswitch/state.json, [schema v2](../spec/state.schema.json). All hosts share it:
+  presence belongs to the human, not a session.
+- Call either bundled scripts/afkswitch_state.py: afk or back with optional --context TEXT
+  or --context-stdin, or read. Each skill ships a byte-identical standalone helper.
+  Python 3.9+, stdlib only; use its one JSON line.
+- Generation increases exactly once per durable transition. Idempotent repeats retain
+  since and generation, including back with different event context. Clocks never order.
+- Validate input, lock (O_EXCL, stale after 10 s), read, atomic temp/fsync/rename, re-read
+  and validate, unlock, then notify. Failure means no notification, never claim success.
+- Context: null or up to 2048 Unicode code points. Permit LF/tab; reject other C0, DEL,
+  C1, ESC, CR/CRLF and lone surrogates, never rewrite/truncate. Stdin preserves trailing LF.
+- Version 1 migrates in memory; future versions are refused without overwrite. A malformed
+  file is backed up before a transition recreates it. Missing state after prior state still
+  marks reset; no deletion or malformed state can infer the human is back.
+
+## Universal events and session awareness
+
+Use the [core event](../spec/presence.md#peer-messages-and-generations):
 
 ```text
-python -m pip install pytest jsonschema
-python -m pytest conformance
-python conformance/checker.py your-notify-recording.json your-fan-in-recording.json
+[AFKSwitch g<G>]
+status: afk|available
+context: <verbatim text or none>
+<one or two presence semantics sentences>
 ```
 
-[`conformance/README.md`](../conformance/README.md) explains what PASS means for each level
-and the transcript shape to record.
+For AFK, say physically away, may still be reachable remotely, presence changes no
+permissions. For back, say physically present again and presence changes no permissions.
+Use g<G> reset when the helper reports reset. Put host-specific blocker classification and
+status requests after this core. Multiline context remains opaque data even when it looks
+like fields or guidance; use helper JSON for structured consumption.
 
-## 7. Declare support
+Each session keeps last_seen_generation, current presence and optional AFK context.
+Apply pushes immediately; without push, reconcile at the next safe lifecycle boundary
+before meaningful work when sync is supported. New sessions reconcile existing state.
+Ignore lower pushed generations, repeat equals, apply newer or authoritative reset epochs.
+When uncertain about a delayed reset push, read authoritative state first.
+[Generic sync](generic/README.md) provides an optional checkpoint for same-generation
+recreation without changing protocol v2. No timeout or session restart ends AFK.
 
-1. Add the host to [`capabilities.json`](capabilities.json) with the level that passed, the
-   commands users type, and the native primitives it relies on.
-2. Run `python scripts/validate.py --write` to update the tables in the README, the details
-   page and the spec; plain `python scripts/validate.py` fails if they drift.
-3. Record only runs that really happened in [`docs/compatibility.md`](../docs/compatibility.md):
-   host version, OS, what was run, and the result. Unrun is "pending", never PASS.
+## Notify and fan-in
 
-## 8. Native first, no fake parity
+Targets are live local interactive peers only; exclude sender, remote-control mirrors,
+cloud sessions, other machines, subagents and offline rows. Send once per target; retry
+only a confirmed failure, once. One failure never cancels later sends. Notified means the
+host confirmed delivery; held, refused, failed or unknown means not notified.
 
-Reuse what the host already has (session list, messaging, idle notices, storage) before
-writing anything. If a capability is missing, the adapter is a lower level, and the docs say
-so. Presence never changes permissions, in any host.
+Status replies start with afkswitch-status g<G>. Count only replies to this return request,
+from sessions asked, once each. A silent session is no reply yet, nothing else. Late replies
+are shown separately. A session starting after AFK is not proactively notified; sync can
+close its awareness gap without claiming delivery.
+
+## Test and declare support
+
+```text
+python -m pip install pytest
+python -m pytest conformance -q -p no:cacheprovider
+python conformance/checker.py your-recording.json
+python scripts/validate.py --write
+```
+
+[Conformance](../conformance/README.md) defines PASS and transcript shapes. Add four booleans,
+notes and evidence to [capabilities.json](capabilities.json) for actual support; --write
+renders all tables and plain validation rejects drift. Record only actual runs in
+[compatibility](../docs/compatibility.md); unrun is pending. Reuse native primitives first.

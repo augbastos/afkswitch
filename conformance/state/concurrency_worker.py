@@ -9,6 +9,7 @@ between reading the prior state and replacing it, so a missing lock shows up rel
 import contextlib
 import importlib.util
 import json
+import os
 import random
 import sys
 import time
@@ -17,6 +18,30 @@ helper_path, worker, count, start_at = sys.argv[1], sys.argv[2], int(sys.argv[3]
 spec = importlib.util.spec_from_file_location("afkswitch_state", helper_path)
 helper = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(helper)
+
+if os.name == "nt":
+    # Stress-only budget: slow sandbox I/O can queue all 60 fsync writes. Keep the
+    # production helper's 15-second policy and stale-lock handling unchanged.
+    helper.LOCK_WAIT_SECONDS = 300.0
+    helper.LOCK_STALE_SECONDS = 120.0
+
+real_locked = helper.locked
+timings = {}
+
+
+@contextlib.contextmanager
+def measured_lock(directory):
+    requested = time.monotonic()
+    with real_locked(directory):
+        entered = time.monotonic()
+        timings["test_lock_wait_seconds"] = entered - requested
+        try:
+            yield
+        finally:
+            timings["test_lock_held_seconds"] = time.monotonic() - entered
+
+
+helper.locked = measured_lock
 
 real_write = helper.write_atomic
 
@@ -42,5 +67,6 @@ for i in range(count):
         result = {"ok": False, "error": exc.code, "message": exc.message}
     except Exception as exc:  # the mutation run may hit raw OS errors; report, don't crash
         result = {"ok": False, "error": type(exc).__name__, "message": str(exc)}
+    result.update(timings)
     print(json.dumps(result), flush=True)
     time.sleep(rng.random() * 0.004)

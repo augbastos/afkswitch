@@ -1,4 +1,4 @@
-"""Reference checker for the notify and fan-in conformance levels.
+"""Reference checker for notify, fan-in, sync and cross-host conformance.
 
 Pure functions over a recorded transcript (what the host listed, what was sent, what came
 back, and what the adapter reported). No model, host, or network is involved, so any
@@ -7,7 +7,7 @@ adapter can record a transcript in this shape and check it.
     python conformance/checker.py conformance/notify/scenarios.json conformance/fan-in/scenarios.json
     python conformance/checker.py my-recording.json
 
-A file holds {"scenarios": [...]}. Each scenario has "kind" ("notify" or "fan-in") and a
+A file holds {"scenarios": [...]}. Each scenario has "kind" (notify, fan-in, sync or cross-host) and a
 "transcript"; see conformance/README.md for the fields. A scenario may declare
 "expect": "pass" or "fail" (with the violation codes it must produce in "violations"); the
 command exits 1 when any scenario's verdict differs from what it expects, or, when it
@@ -215,9 +215,77 @@ def check_fan_in(t: dict) -> list:
     return v
 
 
+# ------------------------------------------------------------------ sync and cross-host
+
+def check_sync(t: dict) -> list:
+    """Check local awareness at push/lifecycle boundaries, independent of notification."""
+    v = []
+    known = t.get("last_seen_generation", 0)
+    status, context = t.get("presence"), t.get("context")
+    if t.get("sync_only") and (t.get("sends") or t.get("requested")):
+        v.append("SYNC_ONLY_OVERCLAIM: a sync-only host cannot claim notification or fan-in")
+    for step in t.get("steps", []):
+        state = step["state"]
+        generation = state.get("generation")
+        reset = bool(state.get("reset"))
+        if generation is None:
+            # No event can infer available merely because the file disappeared.
+            want = "reset-pending" if reset else "repeat"
+        else:
+            want = receiver_action(known, generation, reset)
+        if step.get("action") != want:
+            v.append(f"SYNC_WRONG_ACTION: expected {want}, got {step.get('action')}")
+        if step.get("before_work") and want == "apply" and step.get("action") != "apply":
+            v.append("SYNC_MISSING_BEFORE_WORK: newer presence must reconcile before meaningful work")
+        if want == "apply":
+            known, status, context = generation, state["status"], state.get("context")
+            if status == "available":
+                context = None
+        local = step.get("local", {})
+        if (local.get("generation"), local.get("status"), local.get("context")) != (known, status, context):
+            v.append("SYNC_LOCAL_MISMATCH: local generation/presence/context did not follow reconciliation")
+    return v
+
+
+def check_cross_host(t: dict) -> list:
+    """Replay writes and reconciliation from distinct hosts; order only by generation."""
+    v = []
+    current = t.get("initial")
+    sessions = {}
+    for step in t.get("steps", []):
+        host, operation = step["host"], step["op"]
+        if operation == "write":
+            state = step["state"]
+            previous_generation = current["generation"] if current else 0
+            base = 1 if state.get("migrated") else 0 if state.get("reset") else previous_generation
+            expected = base + bool(state.get("changed", True))
+            if state.get("generation") != expected:
+                v.append("CROSS_HOST_ORDER: durable transitions must advance generation, not clocks")
+            if step["command"] == "back":
+                if state.get("status") != "available" or state.get("context") is not None:
+                    v.append("BACK_DURABLE_CONTEXT: back must persist available with null context")
+                if state.get("event_context") != step.get("context"):
+                    v.append("BACK_EVENT_CONTEXT: back event context was not preserved")
+            elif state.get("status") != "afk" or state.get("context") != step.get("context"):
+                v.append("AFK_CONTEXT: AFK context was not preserved")
+            current = state
+            sessions[host] = {"generation": state["generation"], "status": state["status"], "context": state.get("context")}
+        else:
+            prior = sessions.get(host, {"generation": 0, "status": None, "context": None})
+            state = step.get("state", current)
+            if operation == "sync" and state.get("generation") != current.get("generation"):
+                v.append("CROSS_HOST_STALE_READ: sync did not read the current global generation")
+            violations = check_sync({"last_seen_generation": prior["generation"],
+                                     "presence": prior["status"], "context": prior["context"],
+                                     "steps": [dict(step, state=state)]})
+            v += violations
+            sessions[host] = step["local"]
+    return v
+
+
 # ------------------------------------------------------------------ driver
 
-CHECKS = {"notify": check_notify, "fan-in": check_fan_in}
+CHECKS = {"notify": check_notify, "fan-in": check_fan_in, "sync": check_sync, "cross-host": check_cross_host}
 
 
 def check(scenario: dict) -> list:

@@ -1,0 +1,5 @@
+{
+  "afkswitch-presence": {
+    "PreInvocation": [{"type": "command", "command": "python \"<plugin dir>/scripts/presence_hook.py\" --host agy --event PreInvocation", "timeout": 5}]
+  }
+}
