@@ -109,6 +109,13 @@ The plugin ships `SessionStart` and `UserPromptSubmit` command hooks. They only 
 state and the session transcript tail to sync presence; they never write either file.
 The visual switch is supported on the terminal only.
 
+The switch is a hooks module (`hooks/switch.tsx`). It hooks `session.start`,
+`prompt.submit` and `turn.complete` only to re-read the state file and redraw; it
+passes each event on unchanged and never edits your prompt. It draws the row through
+`ui.render` on the `AbovePrompt` component. It runs a slash command only when you press
+the switch: `/afkswitch:afk` when you are present, `/afkswitch:back` when you are away,
+once per press and without context.
+
 ## Three rules
 
 1. **One writer: the helper.** Only the bundled helper saves presence. The switch and

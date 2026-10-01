@@ -11,7 +11,7 @@ type Cache = {
 }
 
 // Mirror parse_since/context_problem/problems_v1/problems_v2 in the state helper.
-const validSince = (value: unknown): boolean => {
+function validSince(value: unknown): boolean {
   if (typeof value !== 'string') return false
   const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/.exec(value)
   if (!parts || parts[0] !== value) return false
@@ -28,7 +28,7 @@ const validContext = (value: unknown): boolean => value === null ||
   (typeof value === 'string' && [...value].length <= 2048 &&
     !/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\ud800-\udfff]/u.test(value))
 
-const readStatus = async ($: EngineInterface): Promise<Status | null> => {
+async function readStatus($: EngineInterface): Promise<Status | null> {
   const override = await $.env.get('AFKSWITCH_STATE_DIR')
   const home = override ? undefined : (await $.env.get('HOME')) || (await $.env.get('USERPROFILE'))
   const directory = override || (home ? `${home}/.afkswitch` : undefined)
@@ -56,7 +56,7 @@ const readStatus = async ($: EngineInterface): Promise<Status | null> => {
   }
 }
 
-const refresh = async ($: EngineInterface, cache: Cache): Promise<Status | null> => {
+async function refresh($: EngineInterface, cache: Cache): Promise<Status | null> {
   const request = ++cache.revision
   try {
     const status = await readStatus($)
@@ -76,6 +76,7 @@ const refresh = async ($: EngineInterface, cache: Cache): Promise<Status | null>
 }
 
 // A drawing cache only: the helper used by the skills remains the single writer.
+// A hook that throws is skipped by the engine and the chain continues without it.
 export const register: Register = on => {
   const cache: Cache = {
     initialized: false, lastGood: null, readable: false,
@@ -87,20 +88,20 @@ export const register: Register = on => {
     cache.failed = false
     $.ui.invalidate('ui.render')
     return next(e)
-  }).catch(($, e, next) => next(e))
+  })
 
   on('prompt.submit', async ($, e, next) => {
     await refresh($, cache)
     $.ui.invalidate('ui.render')
     return next(e)
-  }).catch(($, e, next) => next(e))
+  })
 
   on('turn.complete', async ($, e, next) => {
     await refresh($, cache)
     cache.failed = false
     $.ui.invalidate('ui.render')
     return next(e)
-  }).catch(($, e, next) => next(e))
+  })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     // This release advertises the terminal only; remote paint is not verified.
@@ -157,5 +158,5 @@ export const register: Register = on => {
         </Box>
       </Box>
     )
-  }).catch(($, e, next) => next(e))
+  })
 }
