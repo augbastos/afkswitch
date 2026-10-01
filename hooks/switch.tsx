@@ -15,12 +15,12 @@ function validSince(value: unknown): boolean {
   if (typeof value !== 'string') return false
   const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/.exec(value)
   if (!parts || parts[0] !== value) return false
-  const [, y, m, d, h, minute, s, zone, oh, om] = parts
+  const [, y, m, d, hour, minute, s, zone, oh, om] = parts
   const year = Number(y), month = Number(m), day = Number(d)
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
   const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
   return year >= 1 && month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1] &&
-    Number(h) < 24 && Number(minute) < 60 && Number(s) < 60 &&
+    Number(hour) < 24 && Number(minute) < 60 && Number(s) < 60 &&
     (zone === 'Z' || Number(oh) * 60 + Number(om) < 1440)
 }
 
