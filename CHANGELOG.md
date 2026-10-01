@@ -4,7 +4,14 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] (0.6.0)
+## [0.6.1] - 2026-10-02
+
+### Changed
+
+- The switch module is written in the form the Claude plugin directory can review: plain function declarations receive `$`, and registrations no longer chain an error fallback (the engine already skips a hook that throws).
+- The README states which events the switch hooks and which commands it runs.
+
+## [0.6.0] - 2026-10-01
 
 ### Added
 
