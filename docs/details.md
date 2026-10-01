@@ -29,12 +29,12 @@ A session that has not answered `/back` is *no reply yet* — never "done", "fai
 ## Host capabilities
 
 <!-- capabilities:details:start -->
-| Host | State | Sync | Notify | Fan-in | Notes | Evidence |
-|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. | hooks/hooks.json; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
-| Codex | yes | yes | no | no | SessionStart and UserPromptSubmit sync requires trusted hooks. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents is an interactive browser, without machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | Codex 0.159.0 hook loader/input/output evidence; .codex-plugin/plugin.json; hooks/codex.json; runtime trust verification pending. |
-| Antigravity CLI | yes | yes | no | no | Read-only PreInvocation sync injects ephemeral AFK context. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | Antigravity CLI 1.2.13 hook contract; adapters/agy/ static plugin layout; conformance/hooks. |
-| Generic local agent | yes | yes | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
+| Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
+|---|---|---|---|---|---|---|---|
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; installed-marketplace module loading remains unverified. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
+| Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
+| Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
 <!-- capabilities:details:end -->
 
 Other hosts: contract only ([`spec/presence.md`](../spec/presence.md) +
@@ -45,8 +45,11 @@ in [compatibility](compatibility.md).
 
 Capabilities: **state** reads/writes durable state; **sync** reconciles generations at a
 lifecycle boundary before meaningful work; **notify** proactively delivers to running peers;
-**fanIn** collects peer status on return. Claude Code and trusted Codex plugins sync at
-session start and prompt submission; Antigravity syncs before invocation. Codex notify is
+**fanIn** collects peer status on return; **visualSwitch** exposes explicit visual input
+on the declared surfaces. Claude Code syncs at session start and prompt submission.
+Codex and Antigravity hook files are experimental, not verified in a live host, and
+both advertise sync=false. The root README table is retained unchanged for this change;
+use the canonical matrix above for current support. Codex notify is
 NOT SUPPORTED: `codex queue --thread <id> --message` may start a new turn in the target
 session (wake/credits), and `codex agents` is an interactive browser with no
 machine-readable listing, delivery receipt or reply channel. FanIn is NOT SUPPORTED
@@ -132,7 +135,45 @@ pwsh -File install.ps1              # install or update into ~/.claude/skills
 pwsh -File install.ps1 -Uninstall   # remove
 ```
 
-Personal-skill installation alone does not install plugin hooks.
+Personal-skill installation alone does not install plugin hooks or the visual switch.
+
+## Claude Code visual switch
+
+Requires a Claude Code build with the early-access function-hooks API enabled. The
+plugin ships [hooks/switch.tsx](../hooks/switch.tsx) under `modules` alongside the
+existing command hooks in [hooks/hooks.json](../hooks/hooks.json). A build without
+function hooks can still use the text skills. Strict plugin-manifest validation checks
+this combined layout; testing installed-marketplace module loading remains pending.
+
+The terminal's `AbovePrompt` band draws one compact bordered row, unchanged in size:
+`AFK  □■` (available, dim grey label) or `AFK  ■□` (away, orange `#F28C28` label).
+No context or other words appear. `AFK  □□` is neutral unknown state; `!` marks a
+failed or unconfirmed action. Unknown state is not clickable. Desktop and other
+surfaces continue the original render without drawing the switch in this release;
+tests cover terminal drawing and desktop pass-through, not native pixel or glyph paint.
+
+The module reads only `~/.afkswitch/state.json` using `$.fs.read`, with
+`AFKSWITCH_STATE_DIR` taking priority over `HOME` or `USERPROFILE`. Only version 1/2 and
+status are needed to draw. It never writes, creates or migrates state, and never runs
+Python to draw. Its module-local cache refreshes at `session.start`, first render after
+load, `prompt.submit`, `turn.complete`, before dispatch and after completion. A bad
+read hides cached presence rather than implying available. No timers or polling.
+
+Clicking a displayed available state requests `$.command.run({ command:
+'afkswitch:afk' })`; displayed AFK requests `afkswitch:back`, without context or slash.
+Intent is captured when drawn; a fresh read that already has the target means no
+command is needed. An unknown fresh read takes no action. The host queues commands
+while busy without touching the typed draft. Each skill invokes a model turn and
+uses its normal helper, notification and return-status flow; host permissions, costs
+and data handling apply. Dispatch settling is not proof of a saved transition: only
+another state read confirms the displayed status, and turn completion refreshes again.
+
+The API has no Button `disabled` prop. While pending, identical cells are drawn as
+Text instead of a Button, with an immediate guard against old-drawing double presses.
+On errors, the control refreshes disk truth and re-enables only a known-state button.
+Every registered hook has a `next(e)` fallback, including a replay-safe `.catch`.
+Tests intercept command dispatch: actual skill resolution from a module in an
+installed model session still needs verification.
 
 ## Lifecycle sync
 
@@ -148,22 +189,20 @@ or use the network. Errors, missing/invalid state and future state versions exit
 with no output. Transcript-only memory cannot detect same-generation recreation without
 a changed marker, and old markers outside the tail can be replayed.
 
-Claude Code discovers [hooks/hooks.json](../hooks/hooks.json). Codex explicitly selects
-[hooks/codex.json](../hooks/codex.json) in both manifests, replacing default discovery:
-separate files select `--host claude` and `--host codex`. The Codex commands use
-`${PLUGIN_ROOT}`; see the [official hook packaging documentation](https://developers.openai.com/plugins/build/plugins).
-Installing the Codex plugin does not trust its hooks; the user must review and trust
-them in the host. End-to-end execution in a trusted Codex host remains unverified.
+Claude Code discovers [hooks/hooks.json](../hooks/hooks.json). Codex's default manifests
+have no `hooks` pointer; [hooks/codex.json](../hooks/codex.json) remains a documented
+experimental file, using `--host codex` and `${PLUGIN_ROOT}`. It has only synthetic
+tests and is not verified in a live host. Do not infer active sync from shipped files.
 
 Both command manifests use `python3` and a 5-second timeout. On Windows, `python3` may
 be absent or an app execution alias: ensure it resolves to Python 3.9+, or adapt the
 installed command to `python` or `py -3`. The explicit skills' interpreter discovery
 does not change hook commands. No shell wrapper is bundled.
 
-The [Antigravity layout](../adapters/agy/README.md) instead uses `PreInvocation` and
+The experimental [Antigravity layout](../adapters/agy/README.md) describes `PreInvocation` and
 returns `injectSteps[].ephemeralMessage` only for AFK; it reads no transcript and
 available state emits nothing. Its peer messaging reach between independent CLI
-sessions is unproven, so notify and fanIn remain unsupported.
+sessions is unproven, so sync, notify and fanIn remain unsupported in the declared matrix.
 
 ## Codex sandbox
 

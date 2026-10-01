@@ -48,6 +48,16 @@ or checkpoint file is created. Host transcript retention still follows host poli
 Agent hosts may process prompts, skills, messages, logs, or local files according to their
 own terms and privacy policies. AFKSwitch does not control host-level data handling.
 
+The optional Claude Code terminal visual switch reads only the local state file using
+the function-hooks filesystem API (`AFKSWITCH_STATE_DIR` overrides the home location).
+It uses version and status for a session-local drawing cache, never displays your
+context, and never writes or migrates state, reads transcripts, starts Python during
+render, polls or makes network requests. A click runs the same `afkswitch:afk` or
+`afkswitch:back` skill with no context; it starts a model turn with the existing helper,
+host messaging and fan-in flow. These are host actions subject to host data handling.
+Codex and Antigravity hook files remain experimental and are not selected by default
+manifests; their live-host sync is not claimed.
+
 ## Future changes
 
 If a future adapter introduces network services, telemetry, authentication, or externally

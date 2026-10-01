@@ -20,7 +20,6 @@
   ],
   "extensions": {
     "com.openai": {
-      "hooks": "./hooks/codex.json",
       "interface": {
         "displayName": "AFKSwitch",
         "shortDescription": "Tell agents when you're away",

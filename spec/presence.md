@@ -16,6 +16,37 @@ AFKSwitch defines one small piece of shared human-agent state: whether the human
 
 Adapters may expose richer UI, but these are the only portable states.
 
+## Visual input
+
+The Claude Code terminal switch is another explicit input to the same `/afk` and
+`/back` actions, never a second source of truth. It draws one bordered compact row:
+`AFK  □■` for available (dim grey label), `AFK  ■□` for AFK (orange `#F28C28` label),
+and neutral `AFK  □□` for unknown state. The geometry is the same in both known states;
+there is no context, animation, slider or track. A failed action adds only `!`.
+
+Only a read of version 1 or 2 with status `afk` or `available` confirms the drawing.
+Missing, unreadable, malformed or future files never imply available. The module
+retains its last good read in a session-local drawing cache, but hides it when a fresh
+read cannot confirm it. It reads at session start, first drawing after module load,
+prompt submission, turn completion, immediately before a click's command and after
+that command completes. There are no timers or polling. It never runs Python during
+render and never writes, creates or migrates state.
+
+A click captures the intended action from the displayed state: available requests
+`afkswitch:afk` with no context; AFK requests `afkswitch:back`. Re-read before dispatch:
+if another session already saved that target, redraw without dispatching a command.
+If that read is unknown, take no action. While dispatch is pending, the cells remain
+visible but cease to be a Button; an immediate guard also prevents a second press
+from an older drawing. Unknown state has no active button. On failure, refresh disk
+truth and re-enable a known-state button; never claim the intended state was saved.
+
+`$.command.run` uses the plugin skill's name without a slash. The host queues it until
+idle without changing the typed draft. The skill starts a model turn: its existing
+helper, notify and fan-in flow runs normally, including host costs and permissions.
+The module itself reads only the local state file and does not send network requests.
+Builds without function hooks retain text commands. This release exposes the switch
+on `terminal` only; other surfaces pass through. Every hook error continues `next(e)`.
+
 ## Invariants
 
 1. **Presence is not reachability.** An AFK operator may still be reachable remotely.
@@ -199,7 +230,8 @@ one.
 ## Session-local awareness and sync
 
 Version 0.6 replaces the earlier "no hooks" constraint with two read-only lifecycle
-hooks: `SessionStart` and `UserPromptSubmit` in Claude Code and Codex. Sessions started
+hooks: `SessionStart` and `UserPromptSubmit` in Claude Code. Experimental Codex files
+describe the same boundaries but are not wired into default manifests. Sessions started
 after `/afk`, or changed by another host, must learn the current presence. Each invocation
 runs `scripts/presence_hook.py` synchronously, imports the existing state helper by path,
 reads `~/.afkswitch/state.json` and at most the last 256 KiB of the session transcript
@@ -221,11 +253,13 @@ replayed; transcript-only memory cannot distinguish an unobserved same-generatio
 recreation from a repeat, or an unobserved reset that overtakes the previous counter.
 It adds no database, checkpoint file or durable protocol fields.
 
-Antigravity CLI uses one `PreInvocation` command hook instead: it reads state and emits
+The experimental Antigravity CLI layout describes one `PreInvocation` command hook
+instead: it reads state and emits
 `injectSteps` with the core event as an `ephemeralMessage` only while AFK. It ignores
 camelCase input fields and needs no transcript: ephemeral context is injected anew each
 invocation. Available state produces no output. The same read-only and fail-open rules
-apply. Codex plugin hooks require the user's trust before the host executes them.
+apply. Codex and Antigravity hook files are shipped, not verified in a live host;
+neither adapter advertises sync. No non-Claude default manifest selects those files.
 
 Each session keeps `last_seen_generation` (initially 0), current presence and optional
 AFK context in its own conversation or host state. A newly started session must reconcile
@@ -260,23 +294,25 @@ delivery; the generic host can call its synchronous reference check.
 
 ## Adapter capabilities
 
-Declare four booleans independently:
+Declare five booleans independently:
 
 - **state:** read/write durable state through this protocol.
 - **sync:** reconcile current global generation with session last_seen_generation at a
   lifecycle boundary before meaningful work; newer means apply, reset means new epoch.
 - **notify:** proactively deliver events to running peers via native host mechanisms.
 - **fanIn:** `/back` collects peer status without inventing replies.
+- **visualSwitch:** an explicit UI input to the same actions, restricted to the host's
+  `visualSwitchSurfaces`; false does not affect text commands.
 
 Documentation must state the capabilities actually supported by each host. The canonical list is
 [`adapters/capabilities.json`](../adapters/capabilities.json); how to write and test an
 adapter is in [`adapters/README.md`](../adapters/README.md).
 
 <!-- capabilities:spec:start -->
-| Host | State | Sync | Notify | Fan-in | Notes | Evidence |
-|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. | hooks/hooks.json; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
-| Codex | yes | yes | no | no | SessionStart and UserPromptSubmit sync requires trusted hooks. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents is an interactive browser, without machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | Codex 0.159.0 hook loader/input/output evidence; .codex-plugin/plugin.json; hooks/codex.json; runtime trust verification pending. |
-| Antigravity CLI | yes | yes | no | no | Read-only PreInvocation sync injects ephemeral AFK context. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | Antigravity CLI 1.2.13 hook contract; adapters/agy/ static plugin layout; conformance/hooks. |
-| Generic local agent | yes | yes | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
+| Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
+|---|---|---|---|---|---|---|---|
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; installed-marketplace module loading remains unverified. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
+| Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
+| Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
 <!-- capabilities:spec:end -->

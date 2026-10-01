@@ -10,7 +10,7 @@ work are ordinary context. Back context belongs to the event; available state ke
 
 ## Independent capabilities
 
-Declare four booleans, plus notes and evidence strings. Claim only implemented behavior.
+Declare five booleans, plus visualSwitchSurfaces, notes and evidence. Claim only implemented behavior.
 
 | Capability | Contract | Host needs |
 |---|---|---|
@@ -18,22 +18,24 @@ Declare four booleans, plus notes and evidence strings. Claim only implemented b
 | sync | Compare global generation with session last_seen_generation at a lifecycle boundary before meaningful work; apply newer state, recognize reset epochs. | One synchronous check before turn/start/resume. |
 | notify | Proactively deliver to running peers; report delivery honestly. | Native discovery and messaging. |
 | fanIn | /back collects status, human blockers first, without invented replies. | Native reply delivery, preferably a one-shot idle notice. |
+| visualSwitch | Explicit UI input to the same skills, with state file as truth. | Function hooks and a pressable AbovePrompt surface; declare visualSwitchSurfaces. |
 
 Sync and notify are independent. Without native peer messaging, notify and fanIn are false.
 Do not emulate messaging with a daemon, HTTP service, database, MCP server, broker, polling,
 watcher, telemetry or accounts. Say plainly that other sessions were not told.
 
 <!-- capabilities:adapters:start -->
-| Host | State | Sync | Notify | Fan-in | Notes | Evidence |
-|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. | hooks/hooks.json; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
-| Codex | yes | yes | no | no | SessionStart and UserPromptSubmit sync requires trusted hooks. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents is an interactive browser, without machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | Codex 0.159.0 hook loader/input/output evidence; .codex-plugin/plugin.json; hooks/codex.json; runtime trust verification pending. |
-| Antigravity CLI | yes | yes | no | no | Read-only PreInvocation sync injects ephemeral AFK context. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | Antigravity CLI 1.2.13 hook contract; adapters/agy/ static plugin layout; conformance/hooks. |
-| Generic local agent | yes | yes | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
+| Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
+|---|---|---|---|---|---|---|---|
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; installed-marketplace module loading remains unverified. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
+| Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
+| Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
 <!-- capabilities:adapters:end -->
 
-Claude Code and Codex use SessionStart and UserPromptSubmit read-only hooks; Codex
-requires user trust. Antigravity uses PreInvocation ephemeral AFK injection.
+Claude Code uses SessionStart and UserPromptSubmit read-only hooks, plus an optional
+terminal function-hooks switch. Codex and Antigravity hook files are experimental,
+not wired into default manifests and not verified in a live host; sync=false for both.
 Generic-local sync means the host calls [the reference check](generic/README.md), not
 automatic integration into a model runtime. Capabilities do not measure model quality.
 
@@ -41,11 +43,12 @@ automatic integration into a model runtime. Capabilities do not measure model qu
 
 Version 0.6 replaces the earlier "no hooks" constraint because a session opened after
 `/afk`, or a change from another host, needs current presence. Claude's default
-[hooks/hooks.json](../hooks/hooks.json) and Codex's explicitly selected
+[hooks/hooks.json](../hooks/hooks.json) and the experimental Codex
 [hooks/codex.json](../hooks/codex.json) run [presence_hook.py](../scripts/presence_hook.py)
-with different `--host` arguments. The Codex manifest override replaces default discovery
-([official format](https://developers.openai.com/plugins/build/plugins)); trust is required
-and actual trusted-host execution remains unverified.
+with different `--host` arguments. No `hooks` pointer selects Codex's file in either
+default manifest; live-host execution remains unverified. Claude's file also names
+[switch.tsx](../hooks/switch.tsx) under `modules`, relative to the hook manifest. The
+UI only reads state and invokes the existing explicit skills; it has no second writer.
 
 These two lifecycle events read `~/.afkswitch/state.json` through the helper and only
 the final 256 KiB of `transcript_path` to find the last AFKSwitch marker. Startup/clear

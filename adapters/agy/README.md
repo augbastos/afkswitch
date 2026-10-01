@@ -1,6 +1,7 @@
 # Antigravity CLI adapter
 
-Static layout for Antigravity CLI 1.2.13; no installer is provided. Copy these public
+Experimental static layout for Antigravity CLI 1.2.13; not verified in a live host,
+no default hook wiring and no installer. For a separately reviewed host experiment, copy these public
 files into the global plugin directory `~/.gemini/config/plugins/afkswitch`:
 
 ```text
@@ -27,6 +28,7 @@ is not persisted, so each invocation receives current AFK state; available state
 no output. It does not read a transcript, write state, poll, run in the background,
 change permissions or use the network. Errors exit 0 with no output.
 
-This provides state and sync. Peer messaging reach between independent CLI sessions is
+Only state is declared supported; sync=false until verified in a live host.
+Peer messaging reach between independent CLI sessions is
 unproven: notify and fanIn are not supported. The static layout and output contract are
 tested locally; loading it in an installed Antigravity host remains a separate check.

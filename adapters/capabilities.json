@@ -1,42 +1,47 @@
 {
-  "description": "Canonical AFKSwitch support matrix. scripts/validate.py renders it into the README, docs/details.md and spec/presence.md (python scripts/validate.py --write) and fails when they drift.",
+  "description": "Canonical AFKSwitch support matrix. scripts/validate.py renders it into docs/details.md, spec/presence.md and adapters/README.md (python scripts/validate.py --write) and fails when they drift. The root README table is a historical snapshot retained for this change.",
   "capabilities": {
     "state": "Read and write durable presence state.",
     "sync": "Reconcile global generation with session last_seen_generation at a lifecycle boundary before meaningful work; reset starts a new epoch.",
     "notify": "Proactively deliver presence events to running peers through native host mechanisms.",
-    "fanIn": "Collect peer status on /back with honest delivery and no invented replies."
+    "fanIn": "Collect peer status on /back with honest delivery and no invented replies.",
+    "visualSwitch": "Explicit visual input to the existing skills, on the declared visualSwitchSurfaces only; requires function hooks."
   },
   "hosts": [
     {
       "id": "claude-code",
       "name": "Claude Code",
       "state": true, "sync": true, "notify": true, "fanIn": true,
+      "visualSwitch": true, "visualSwitchSurfaces": ["terminal"],
       "reference": true,
       "invoke": ["/afk", "/back"],
       "native": ["ListAgents", "SendMessage", "notify_when_idle"],
-      "notes": "Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection.",
-      "evidence": "hooks/hooks.json; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle."
+      "notes": "Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; installed-marketplace module loading remains unverified.",
+      "evidence": "hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle."
     },
     {
       "id": "codex",
       "name": "Codex",
-      "state": true, "sync": true, "notify": false, "fanIn": false,
+      "state": true, "sync": false, "notify": false, "fanIn": false,
+      "visualSwitch": false, "visualSwitchSurfaces": [],
       "reference": false,
       "invoke": ["$afkswitch:afk", "$afkswitch:back"],
       "native": [],
-      "notes": "SessionStart and UserPromptSubmit sync requires trusted hooks. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents is an interactive browser, without machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel.",
-      "evidence": "Codex 0.159.0 hook loader/input/output evidence; .codex-plugin/plugin.json; hooks/codex.json; runtime trust verification pending."
+      "notes": "Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel.",
+      "evidence": "hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only."
     },
     {
       "id": "agy", "name": "Antigravity CLI", "reference": false,
-      "state": true, "sync": true, "notify": false, "fanIn": false,
+      "state": true, "sync": false, "notify": false, "fanIn": false,
+      "visualSwitch": false, "visualSwitchSurfaces": [],
       "invoke": ["/afk", "/back"], "native": ["PreInvocation"],
-      "notes": "Read-only PreInvocation sync injects ephemeral AFK context. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported.",
-      "evidence": "Antigravity CLI 1.2.13 hook contract; adapters/agy/ static plugin layout; conformance/hooks."
+      "notes": "Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported.",
+      "evidence": "adapters/agy/ static plugin layout; synthetic conformance/hooks tests only."
     },
     {
       "id": "generic-local", "name": "Generic local agent", "reference": false,
       "state": true, "sync": true, "notify": false, "fanIn": false,
+      "visualSwitch": false, "visualSwitchSurfaces": [],
       "invoke": ["/afk", "/back"], "native": [],
       "notes": "Sync via the reference helper when the host calls check before each turn.",
       "evidence": "adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host."

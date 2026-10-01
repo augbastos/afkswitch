@@ -167,20 +167,27 @@ for name, needles in skill_needs.items():
         if needle not in text:
             fail(f"skills/{name}/SKILL.md must mention {needle!r}")
 
-# Only one-shot lifecycle hooks; no MCP servers or apps.
+# One-shot command hooks and an optional function-hooks UI; no MCP servers or apps.
 for manifest in (portable, claude, legacy):
     for key in ("mcpServers", "apps"):
         if key in manifest:
             fail(f"manifests must not declare {key!r}")
-if legacy.get("hooks") != "./hooks/codex.json" or portable["extensions"]["com.openai"].get("hooks") != legacy["hooks"]:
-    fail("Codex manifests must reference ./hooks/codex.json")
+if "hooks" in legacy or any("hooks" in extension for extension in portable["extensions"].values()):
+    fail("default non-Claude manifests must not wire experimental hooks")
 if claude.get("description") != "AFKSwitch by augbastos — Tell your agents when you're away and when you're back.":
     fail("Claude plugin description changed unexpectedly")
 for host, path, variable in (("claude", "hooks/hooks.json", "CLAUDE_PLUGIN_ROOT"),
                              ("codex", "hooks/codex.json", "PLUGIN_ROOT")):
     if not (ROOT / path).is_file():
         fail(f"required hook manifest missing: {path}")
-    hooks = load_json(path).get("hooks", {})
+    manifest = load_json(path)
+    if host == "claude":
+        if (manifest.get("modules") != ["./switch.tsx"] or set(manifest) != {"modules", "hooks"}
+                or not (ROOT / "hooks/switch.tsx").is_file()):
+            fail("Claude hook manifest must combine command hooks with ./switch.tsx")
+    elif "modules" in manifest:
+        fail("experimental Codex hooks must not load the Claude UI module")
+    hooks = manifest.get("hooks", {})
     if set(hooks) != {"SessionStart", "UserPromptSubmit"}:
         fail(f"{path} must declare exactly the two lifecycle hooks")
     for event, entries in hooks.items():
@@ -195,9 +202,9 @@ if load_json("adapters/agy/plugin.json") != {"name": "afkswitch", "version": ver
 
 # One canonical capability matrix, rendered into the docs.
 capabilities = load_json("adapters/capabilities.json")
-CAPABILITY_KEYS = ("state", "sync", "notify", "fanIn")
+CAPABILITY_KEYS = ("state", "sync", "notify", "fanIn", "visualSwitch")
 if set(capabilities.get("capabilities", {})) != set(CAPABILITY_KEYS):
-    fail("capability definitions must be state, sync, notify, fanIn")
+    fail("capability definitions must be state, sync, notify, fanIn, visualSwitch")
 ids = [host.get("id") for host in capabilities["hosts"]]
 if len(ids) != len(set(ids)):
     fail("capability host ids must be unique")
@@ -212,6 +219,11 @@ for host in capabilities["hosts"]:
         fail(f"{host['id']}: capabilities require state")
     if host["fanIn"] and not host["notify"]:
         fail(f"{host['id']}: fanIn requires notify")
+    expected_surfaces = ["terminal"] if host["id"] == "claude-code" else []
+    if host["visualSwitch"] != bool(expected_surfaces) or host.get("visualSwitchSurfaces") != expected_surfaces:
+        fail(f"{host['id']}: visualSwitch is terminal-only in Claude Code")
+    if host["id"] in {"codex", "agy"} and host["sync"]:
+        fail(f"{host['id']}: experimental hooks do not claim live-host sync")
 
 
 def host_label(host: dict) -> str:
@@ -223,7 +235,7 @@ def render(style: str) -> str:
     if style not in ("readme", "details", "spec", "adapters"):
         fail(f"unknown capabilities style {style!r}")
     extra = ["Notes"] if style == "readme" else ["Notes", "Evidence"]
-    headers = ["Host", "State", "Sync", "Notify", "Fan-in", *extra]
+    headers = ["Host", "State", "Sync", "Notify", "Fan-in", "Visual switch", *extra]
     lines = ["| " + " | ".join(headers) + " |", "|" + "|".join("---" for _ in headers) + "|"]
     for host in hosts:
         cells = [host["name"] if style == "readme" else host_label(host)]
@@ -236,7 +248,9 @@ def render(style: str) -> str:
 
 
 MARKER = re.compile(r"(<!-- capabilities:(\w+):start -->\n)(.*?)(<!-- capabilities:\2:end -->)", re.S)
-rendered_docs = {"README.md": "readme", "docs/details.md": "details", "spec/presence.md": "spec",
+# The root README is explicitly frozen for this delivery; do not rewrite its
+# historical capability snapshot or treat it as the current canonical matrix.
+rendered_docs = {"docs/details.md": "details", "spec/presence.md": "spec",
                  "adapters/README.md": "adapters"}
 for path, style in rendered_docs.items():
     text = (ROOT / path).read_text(encoding="utf-8")
@@ -290,6 +304,7 @@ required = [
     "conformance/cross-host/scenarios.json", "conformance/cross-host/test_cross_host.py",
     "adapters/generic/README.md", "adapters/generic/presence_sync.py",
     "scripts/presence_hook.py", "hooks/hooks.json", "hooks/codex.json",
+    "hooks/switch.tsx", "hooks/switch.test.ts",
     "adapters/agy/README.md", "adapters/agy/plugin.json", "adapters/agy/hooks.json",
     "conformance/hooks/test_hooks.py",
     "evals/README.md", "evals/run.py", "evals/scenarios.json",
@@ -324,9 +339,9 @@ zip_path = subprocess.run(
 names = zipfile.ZipFile(zip_path).namelist()
 if "plugin.json" not in names or "\\" in "".join(names):
     fail("plugin archive must have plugin.json at its root and '/' separators")
-for name in ["skills/afk/SKILL.md", "skills/back/SKILL.md", "skills/afk/agents/openai.yaml",
+for name in ["SECURITY.md", "skills/afk/SKILL.md", "skills/back/SKILL.md", "skills/afk/agents/openai.yaml",
              "skills/afk/scripts/afkswitch_state.py", "skills/back/scripts/afkswitch_state.py",
-             "scripts/presence_hook.py", "hooks/hooks.json", "hooks/codex.json",
+             "scripts/presence_hook.py", "hooks/hooks.json", "hooks/codex.json", "hooks/switch.tsx",
              ".claude-plugin/plugin.json", "adapters/agy/README.md", "adapters/agy/plugin.json", "adapters/agy/hooks.json",
              *(image.removeprefix("./") for image in images)]:
     if name not in names:
@@ -335,9 +350,11 @@ if any(n.endswith((".mcp.json", ".app.json")) for n in names):
     fail("the plugin archive must not contain MCP or app definitions")
 if any("__pycache__" in n or n.endswith(".pyc") for n in names):
     fail("the plugin archive must not contain Python bytecode")
+if any(".test." in Path(n).name for n in names):
+    fail("the plugin archive must not contain function-hook tests")
 with zipfile.ZipFile(zip_path) as z:
-    for script in (HELPER, BACK_HELPER):
+    for script in (HELPER, BACK_HELPER, ROOT / "hooks/switch.tsx", ROOT / "hooks/hooks.json"):
         if z.read(script.relative_to(ROOT).as_posix()) != script.read_bytes():
-            fail("an archived state helper differs from its repository copy")
+            fail("an archived helper or function-hook file differs from its repository copy")
 
 print(f"AFKSwitch {version} validation passed.")

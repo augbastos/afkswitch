@@ -10,13 +10,21 @@ assumed. The support levels themselves are in
 |---|---|---|---|
 | Claude Code | 2.1.285 | `claude plugin validate --strict .` and validation of `.claude-plugin/plugin.json` | passed; no login or model session |
 | Python | 3.14 | `conformance/hooks` with synthetic state and transcripts, including real CLI smoke checks | passed; read-only state hashes unchanged |
+| Claude Code | 2.1.287 | `claude plugin validate --strict .` and `claude plugin validate --strict .claude-plugin/plugin.json`; `claude plugin test .` | both strict checks passed; combined modules/command hooks accepted; 28 UI tests passed, 0 failed |
+| Python | 3.14 | `python scripts/validate.py --write`, `python scripts/validate.py`; `python -m pytest conformance -q -p no:cacheprovider` | validation passed; 331 passed, 1 skipped (POSIX modes on Windows) |
 
 The hook tests prove script behavior, not host installation or model compliance.
-End-to-end lifecycle injection in Claude Code, trusted Codex 0.159.0 plugins and
-Antigravity CLI 1.2.13 remains unverified. Codex's manifest override and `PLUGIN_ROOT`
-follow the [official packaging contract](https://developers.openai.com/plugins/build/plugins).
-Installing the plugin alone does not trust its hooks. No peer notification or fan-in
-is claimed for Codex or Antigravity.
+UI tests exercise terminal descriptions, colors and handlers, plus desktop pass-through,
+not font glyph alignment or native paint. They intercept `command.run`, so they confirm
+the requested names `afkswitch:afk` / `afkswitch:back` and model-independent behavior,
+not actual skill resolution or notification in a model session. Loading `modules` from
+a marketplace-installed plugin and invoking those skills from the live switch both
+remain unverified. Text skills retain their existing helper and notification flow.
+
+End-to-end lifecycle injection in Claude Code remains unverified. Codex 0.159.0 and
+Antigravity CLI 1.2.13 experimental hook files are shipped, not verified in a live host;
+sync=false for both and no default manifest hooks pointers. No peer notification,
+fan-in or visual switch is claimed for either host. No live-host experiment was run.
 
 ## AFKSwitch 0.5.0
 
