@@ -13,6 +13,7 @@ All notable changes to this project are documented here. Format follows
 - Session awareness, portable event blocks, sync and cross-host conformance, and opt-in local model evals.
 - Read-only SessionStart and UserPromptSubmit hooks for Claude Code; experimental Codex hooks and a static Antigravity PreInvocation adapter.
 - Compact terminal AFK switch above the Claude Code prompt on builds with function hooks; clicks invoke the existing explicit skills with no context and confirmed state remains the only truth.
+- The switch requires loading via `--plugin-dir` or `CLAUDE_CODE_PLUGIN_DIRS`; directory and marketplace installs retain text skills and read-only sync hooks, but cannot load the switch until Anthropic enables modules for installed plugins.
 - Function-hooks UI tests for known/unknown states, captured click intent, concurrency and failures; visualSwitch and visualSwitchSurfaces capability declarations.
 
 ### Changed

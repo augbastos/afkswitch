@@ -12,16 +12,18 @@ assumed. The support levels themselves are in
 | Python | 3.14 | `conformance/hooks` with synthetic state and transcripts, including real CLI smoke checks | passed; read-only state hashes unchanged |
 | Claude Code | 2.1.287 | `claude plugin validate --strict .` and `claude plugin validate --strict .claude-plugin/plugin.json`; `claude plugin test .` | both strict checks passed; combined modules/command hooks accepted; 28 UI tests passed, 0 failed |
 | Python | 3.14 | `python scripts/validate.py --write`, `python scripts/validate.py`; `python -m pytest conformance -q -p no:cacheprovider` | validation passed; 331 passed, 1 skipped (POSIX modes on Windows) |
+| Claude Code | 2.1.287 | Disposable interactive sessions in an isolated config, plugin loaded with `--plugin-dir`, terminal switch pressed by a person with the mouse | one click (no Enter) ran `/afkswitch:afk` and `/afkswitch:back`; the helper saved each generation; the other session was notified and its switch redrew on its next event; colors honored, and `NO_COLOR` gave a monochrome switch still readable from the cells; passed |
+| Claude Code | 2.1.287 | Same plugin installed from a local marketplace | skills and command hooks loaded; the hooks module was not loaded ("hooks modules are turned off for installed plugins"), so no switch (host limitation) |
 
 The hook tests prove script behavior, not host installation or model compliance.
 UI tests exercise terminal descriptions, colors and handlers, plus desktop pass-through,
 not font glyph alignment or native paint. They intercept `command.run`, so they confirm
 the requested names `afkswitch:afk` / `afkswitch:back` and model-independent behavior,
-not actual skill resolution or notification in a model session. Loading `modules` from
-a marketplace-installed plugin and invoking those skills from the live switch both
-remain unverified. Text skills retain their existing helper and notification flow.
+not actual skill resolution. The live rows above cover that: a person's click resolved
+the skills and notified a peer in a model session. Loading `modules` from a
+marketplace-installed plugin does not work today; that is a host rollout limit.
 
-End-to-end lifecycle injection in Claude Code remains unverified. Codex 0.159.0 and
+Codex 0.159.0 and
 Antigravity CLI 1.2.13 experimental hook files are shipped, not verified in a live host;
 sync=false for both and no default manifest hooks pointers. No peer notification,
 fan-in or visual switch is claimed for either host. No live-host experiment was run.
