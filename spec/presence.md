@@ -22,7 +22,8 @@ The Claude Code terminal switch is another explicit input to the same `/afk` and
 `/back` actions, never a second source of truth. It draws one bordered compact row:
 `AFK  □■` for available (dim grey label), `AFK  ■□` for AFK (orange `#F28C28` label),
 and neutral `AFK  □□` before first use or for unknown state. The geometry is the same in both known states;
-there is no context, animation, slider or track. A failed action adds only `!`.
+there is no context, animation, slider or track. A pending action adds dim `saving…`;
+a failed action adds orange `not switched — try /afk or /back`.
 
 Only a read of version 1 or 2 with status `afk` or `available` confirms the drawing.
 Missing, unreadable, malformed or future files never imply available. The module
