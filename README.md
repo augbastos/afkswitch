@@ -159,8 +159,9 @@ see [Codex sandbox setup](docs/details.md#codex-sandbox).
 The plugin ships `SessionStart` and `UserPromptSubmit` command hooks. They only read
 state and the session transcript tail to sync presence; they never write either file.
 The switch is a hooks module (`hooks/switch.tsx`). It hooks `session.start`,
-`prompt.submit` and `turn.complete` only to re-read state and redraw; it passes each
-event on unchanged and never edits your prompt. It draws through `ui.render` on
+`prompt.submit` and `turn.complete` to re-read state and redraw, and `command.run`
+only to notice when its own command starts; it passes every event on unchanged
+and never edits your prompt. It draws through `ui.render` on
 `AbovePrompt`. A press runs `/afkswitch:afk` when present or before first use, or
 `/afkswitch:back` when away, once per press and without context.
 See the [presence specification](spec/presence.md) for the state contract.

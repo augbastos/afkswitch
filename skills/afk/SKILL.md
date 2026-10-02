@@ -86,7 +86,7 @@ When the host exposes `ListAgents` and `SendMessage`:
 3. No targets → the state is still set; report it.
 4. Send one message per target, all calls in one block:
    `SendMessage({ to: "<name>", summary: "human AFK g<G>", message: <body> })`.
-   Use the bare name; add the ` [ref]` only when two rows share a name.
+   Bare `to` (`main`, not `main [9278ae]`); add ` [ref]` only when two rows share a name.
 5. **One copy per target per invocation.** Retry only a confirmed failure, at most once,
    and say `retried once`. Never re-send on slowness or ambiguity.
 6. A failed target never cancels the others.

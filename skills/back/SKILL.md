@@ -76,6 +76,7 @@ When the host exposes `ListAgents` and `SendMessage`:
    polling):
 
    `SendMessage({ to: "<name>", summary: "human back g<G> + status request", notify_when_idle: true, message: <body> })`
+   Bare `to`: `main`, not `main [9278ae]`.
 
 5. **One copy per target per invocation.** Retry only a confirmed failure, at most once,
    and say `retried once`. A failed target never cancels the others. A message **held
