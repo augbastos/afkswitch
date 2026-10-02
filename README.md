@@ -109,7 +109,9 @@ The plugin ships `SessionStart` and `UserPromptSubmit` command hooks. They only 
 state and the session transcript tail to sync presence; they never write either file.
 The visual switch is supported on the terminal only.
 
-The switch is a hooks module (`hooks/switch.tsx`). It hooks `session.start`,
+The Claude plugin directory copy (tag `v0.6.2-directory`) leaves the switch module out,
+because the directory holds any plugin that includes a mod; install from GitHub for the
+switch. The switch is a hooks module (`hooks/switch.tsx` on `main`). It hooks `session.start`,
 `prompt.submit` and `turn.complete` only to re-read the state file and redraw; it
 passes each event on unchanged and never edits your prompt. It draws the row through
 `ui.render` on the `AbovePrompt` component. It runs a slash command only when you press

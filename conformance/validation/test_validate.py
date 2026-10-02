@@ -16,7 +16,6 @@ ROOT = Path(__file__).resolve().parents[2]
 @pytest.mark.parametrize("mutation,message", [
     ("helper", "byte-identical"),
     ("table", "docs/details.md is out of date with adapters/capabilities.json"),
-    ("module", "Claude hook manifest must combine command hooks with ./switch.tsx"),
     ("codex-hooks", "default non-Claude manifests must not wire experimental hooks"),
     ("experimental-sync", "experimental hooks do not claim live-host sync"),
     ("visual-surfaces", "visualSwitch is terminal-only in Claude Code"),

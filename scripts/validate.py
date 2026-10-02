@@ -182,9 +182,10 @@ for host, path, variable in (("claude", "hooks/hooks.json", "CLAUDE_PLUGIN_ROOT"
         fail(f"required hook manifest missing: {path}")
     manifest = load_json(path)
     if host == "claude":
-        if (manifest.get("modules") != ["./switch.tsx"] or set(manifest) != {"modules", "hooks"}
-                or not (ROOT / "hooks/switch.tsx").is_file()):
-            fail("Claude hook manifest must combine command hooks with ./switch.tsx")
+        # Directory build: the Claude plugin directory holds any plugin with a mod, so this
+        # tag ships the command hooks without the switch module.
+        if set(manifest) != {"hooks"} or (ROOT / "hooks/switch.tsx").exists():
+            fail("directory build must ship command hooks without the switch module")
     elif "modules" in manifest:
         fail("experimental Codex hooks must not load the Claude UI module")
     hooks = manifest.get("hooks", {})
@@ -304,7 +305,6 @@ required = [
     "conformance/cross-host/scenarios.json", "conformance/cross-host/test_cross_host.py",
     "adapters/generic/README.md", "adapters/generic/presence_sync.py",
     "scripts/presence_hook.py", "hooks/hooks.json", "hooks/codex.json",
-    "hooks/switch.tsx", "hooks/switch.test.ts",
     "adapters/agy/README.md", "adapters/agy/plugin.json", "adapters/agy/hooks.json",
     "conformance/hooks/test_hooks.py",
     "evals/README.md", "evals/run.py", "evals/scenarios.json",
@@ -341,7 +341,7 @@ if "plugin.json" not in names or "\\" in "".join(names):
     fail("plugin archive must have plugin.json at its root and '/' separators")
 for name in ["SECURITY.md", "skills/afk/SKILL.md", "skills/back/SKILL.md", "skills/afk/agents/openai.yaml",
              "skills/afk/scripts/afkswitch_state.py", "skills/back/scripts/afkswitch_state.py",
-             "scripts/presence_hook.py", "hooks/hooks.json", "hooks/codex.json", "hooks/switch.tsx",
+             "scripts/presence_hook.py", "hooks/hooks.json", "hooks/codex.json",
              ".claude-plugin/plugin.json", "adapters/agy/README.md", "adapters/agy/plugin.json", "adapters/agy/hooks.json",
              *(image.removeprefix("./") for image in images)]:
     if name not in names:
@@ -353,7 +353,7 @@ if any("__pycache__" in n or n.endswith(".pyc") for n in names):
 if any(".test." in Path(n).name for n in names):
     fail("the plugin archive must not contain function-hook tests")
 with zipfile.ZipFile(zip_path) as z:
-    for script in (HELPER, BACK_HELPER, ROOT / "hooks/switch.tsx", ROOT / "hooks/hooks.json"):
+    for script in (HELPER, BACK_HELPER, ROOT / "hooks/hooks.json"):
         if z.read(script.relative_to(ROOT).as_posix()) != script.read_bytes():
             fail("an archived helper or function-hook file differs from its repository copy")
 

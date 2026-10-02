@@ -140,7 +140,7 @@ Personal-skill installation alone does not install plugin hooks or the visual sw
 ## Claude Code visual switch
 
 Requires a Claude Code build with the early-access function-hooks API enabled. The
-plugin ships [hooks/switch.tsx](../hooks/switch.tsx) under `modules` alongside the
+plugin ships [hooks/switch.tsx](https://github.com/augbastos/afkswitch/blob/main/hooks/switch.tsx) under `modules` alongside the
 existing command hooks in [hooks/hooks.json](../hooks/hooks.json). A build without
 function hooks can still use the text skills. Strict plugin-manifest validation checks
 this combined layout; testing installed-marketplace module loading remains pending.

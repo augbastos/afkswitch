@@ -32,8 +32,8 @@ helpers = [ROOT / "skills" / name / "scripts" / "afkswitch_state.py" for name in
 if helpers[0].read_bytes() != helpers[1].read_bytes():
     raise SystemExit("afk/back state helpers differ; package requires byte-identical copies")
 hook_manifest = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
-if hook_manifest.get("modules") != ["./switch.tsx"] or not (ROOT / "hooks/switch.tsx").is_file():
-    raise SystemExit("package requires the declared hooks/switch.tsx function-hooks module")
+if "modules" in hook_manifest or (ROOT / "hooks/switch.tsx").exists():
+    raise SystemExit("directory build must not ship the switch module")
 
 with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as z:
     for rel in include_files:
