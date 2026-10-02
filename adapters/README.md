@@ -47,7 +47,7 @@ Version 0.6 replaces the earlier "no hooks" constraint because a session opened 
 [hooks/codex.json](../hooks/codex.json) run [presence_hook.py](../scripts/presence_hook.py)
 with different `--host` arguments. No `hooks` pointer selects Codex's file in either
 default manifest; live-host execution remains unverified. Claude's file also names
-[switch.tsx](../hooks/switch.tsx) under `modules`, relative to the hook manifest. The
+[switch.tsx](https://github.com/augbastos/afkswitch/blob/main/hooks/switch.tsx) under `modules`, relative to the hook manifest. The
 UI only reads state and invokes the existing explicit skills; it has no second writer.
 
 These two lifecycle events read `~/.afkswitch/state.json` through the helper and only
