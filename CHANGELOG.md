@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.6] - 2026-10-02
+
+### Fixed
+
+- Keep the switch pending while its command is queued, and confirm the saved state after the command's turn finishes instead of showing a premature failure.
+
 ## [0.6.5] - 2026-10-02
 
 ### Added

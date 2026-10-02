@@ -123,6 +123,8 @@ for (const [before, after, command] of [
     const ui = await mount($)
     await ui.press({ key: 'afkswitch-toggle' })
     expect(calls).toEqual([{ command, args: '', origin: { kind: 'plugin', name: 'afkswitch' } }])
+    expect(await ui.find({ text: 'saving…' })).toBeDefined()
+    await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 'synthetic', reason: 'answer' })
     expect(await ui.find({ text: after === 'afk' ? '■□' : '□■' })).toBeDefined()
     expect(disk.reads).toHaveLength(before === 'missing' ? 1 : 3)
   })
@@ -168,16 +170,94 @@ test(`${before}: double press while command is queued runs only once and removes
     await Promise.all([first, second])
   }
   expect(calls).toBe(1)
+  expect(await ui.find({ text: 'saving…' })).toBeDefined()
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 'synthetic', reason: 'answer' })
   expect(await ui.find({ text: 'saving…' })).toBeUndefined()
   expect(await ui.find({ text: '■□' })).toBeDefined()
 })
+}
+
+test('queued back waits through an earlier turn, then confirms the saved state', async ($, on) => {
+  const disk = setup(on, state('afk'))
+  let calls = 0
+  on('command.run', () => { calls += 1; return {} })
+  const ui = await mount($)
+  await ui.press({ key: 'afkswitch-toggle' })
+  expect(calls).toBe(1)
+  expect(await ui.find({ text: 'saving…' })).toBeDefined()
+  expect(await ui.find({ text: '■□' })).toBeDefined()
+  expect(await ui.find({ text: /not switched/ })).toBeUndefined()
+  expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 'earlier', reason: 'answer' })
+  expect(await ui.find({ text: 'saving…' })).toBeDefined()
+  expect(await ui.find({ text: /not switched/ })).toBeUndefined()
+  await $.command.run({ command: 'afkswitch:back', args: '', origin: { kind: 'plugin', name: 'afkswitch' } })
+  disk.raw = state('available')
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 'switch', reason: 'answer' })
+  expect(await ui.find({ text: '□■' })).toBeDefined()
+  expect(await ui.find({ text: 'saving…' })).toBeUndefined()
+  expect(await ui.find({ text: /not switched/ })).toBeUndefined()
+  expect(await ui.find({ key: 'afkswitch-toggle' })).toBeDefined()
+})
+
+for (const event of [
+  { command: 'afkswitch:back', args: 'unchanged', origin: { kind: 'composer' as const } },
+  { command: 'afkswitch:back', args: 'unchanged', origin: { kind: 'plugin' as const, name: 'other-plugin' } },
+  { command: 'other:command', args: 'unchanged', origin: { kind: 'plugin' as const, name: 'afkswitch' } },
+]) {
+  test(`unrelated command ${event.command} from ${JSON.stringify(event.origin)} passes through without starting the switch`, async ($, on) => {
+    setup(on, state('afk'))
+    const calls: unknown[] = []
+    on('command.run', ($, e) => { calls.push(e); return {} })
+    const ui = await mount($)
+    await ui.press({ key: 'afkswitch-toggle' })
+    await $.command.run(event)
+    expect(calls[1]).toMatchObject(event)
+    await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 'unrelated', reason: 'answer' })
+    expect(await ui.find({ text: 'saving…' })).toBeDefined()
+    expect(await ui.find({ text: /not switched/ })).toBeUndefined()
+  })
+}
+
+test('started back with unchanged state fails only when its turn completes', async ($, on) => {
+  setup(on, state('afk'))
+  on('command.run', () => ({}))
+  const ui = await mount($)
+  await ui.press({ key: 'afkswitch-toggle' })
+  await $.command.run({ command: 'afkswitch:back', args: '', origin: { kind: 'plugin', name: 'afkswitch' } })
+  expect(await ui.find({ text: 'saving…' })).toBeDefined()
+  expect(await ui.find({ text: /not switched/ })).toBeUndefined()
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 'switch', reason: 'answer' })
+  expect(await ui.find({ text: 'saving…' })).toBeUndefined()
+  expect(await ui.find({ text: '■□' })).toBeDefined()
+  expect(await ui.find({ text: /not switched/ })).toBeDefined()
+  expect(await ui.find({ key: 'afkswitch-toggle' })).toBeDefined()
+})
+
+for (const boundary of ['prompt.submit', 'session.start'] as const) {
+  test(`${boundary} confirms a pending switch saved by another session`, async ($, on) => {
+    const disk = setup(on, state('afk'))
+    on('command.run', () => ({}))
+    on('store.get', () => ({ value: 1 }))
+    const ui = await mount($)
+    await ui.press({ key: 'afkswitch-toggle' })
+    disk.raw = state('available')
+    if (boundary === 'prompt.submit') {
+      await $.prompt.submit({ text: 'unchanged', wait: false, origin: { kind: 'composer' } })
+    } else {
+      await $.session.start({ cwd: '/test-project', surface: 'terminal', isInteractive: true })
+    }
+    expect(await ui.find({ text: '□■' })).toBeDefined()
+    expect(await ui.find({ text: 'saving…' })).toBeUndefined()
+    expect(await ui.find({ text: /not switched/ })).toBeUndefined()
+  })
 }
 
 test('first press dismisses onboarding even when the command fails', async ($, on) => {
   setup(on, state('available'))
   on('store.get', () => ({ value: undefined }))
   on('store.set', () => ({ value: undefined }))
-  on('command.run', () => ({ exitCode: 1 }))
+  on('command.run', () => { throw new Error('synthetic command failure') })
   await $.session.start({ cwd: '/test-project', surface: 'terminal', isInteractive: true })
   const ui = await mount($)
   expect(await ui.find({ text: ONBOARDING[0] })).toBeDefined()
@@ -208,7 +288,8 @@ test('missing state after dispatch is unconfirmed', async ($, on) => {
   await ui.press({ key: 'afkswitch-toggle' })
   expect(await ui.find({ text: '□□' })).toBeDefined()
   expect(await ui.find({ text: '■□' })).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /not switched/ })).toBeDefined()
+  expect(await ui.find({ text: 'saving…' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /not switched/ })).toBeUndefined()
 })
 
 test('existence check throwing stays unknown and cannot be pressed', async ($, on) => {
@@ -228,6 +309,12 @@ for (const failure of ['throw', 'exit', 'unconfirmed'] as const) {
     })
     const ui = await mount($)
     await ui.press({ key: 'afkswitch-toggle' })
+    if (failure !== 'throw') {
+      expect(await ui.find({ text: 'saving…' })).toBeDefined()
+      expect(await ui.find({ text: /not switched/ })).toBeUndefined()
+      await $.command.run({ command: 'afkswitch:afk', args: '', origin: { kind: 'plugin', name: 'afkswitch' } })
+      await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 'synthetic', reason: 'answer' })
+    }
     expect(await ui.find({ key: 'afkswitch-toggle' })).toBeDefined()
     expect(await ui.find({ text: '□■' })).toBeDefined()
     expect(await ui.find({ text: '■□' })).toBeUndefined()

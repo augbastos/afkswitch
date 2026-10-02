@@ -9,6 +9,8 @@ type Cache = {
   lastGood: ReadStatus
   readable: boolean
   pending: boolean
+  awaiting: Status | null
+  started: boolean
   failed: boolean
   revision: number
 }
@@ -69,6 +71,12 @@ async function refresh($: EngineInterface, cache: Cache): Promise<ReadStatus> {
       cache.initialized = true
       cache.readable = status !== null
       if (status !== null) cache.lastGood = status
+      if (cache.awaiting && status === cache.awaiting) {
+        cache.pending = false
+        cache.awaiting = null
+        cache.started = false
+        cache.failed = false
+      }
     }
     return status
   } catch (error) {
@@ -85,7 +93,7 @@ async function refresh($: EngineInterface, cache: Cache): Promise<ReadStatus> {
 export const register: Register = on => {
   const cache: Cache = {
     initialized: false, lastGood: null, readable: false,
-    pending: false, failed: false, revision: 0,
+    pending: false, awaiting: null, started: false, failed: false, revision: 0,
   }
 
   on('session.start', async ($, e, next) => {
@@ -111,9 +119,22 @@ export const register: Register = on => {
     return next(e)
   })
 
+  on('command.run', ($, e, next) => {
+    if (cache.awaiting && e.origin?.kind === 'plugin' && e.origin.name === 'afkswitch' &&
+      (e.command === 'afkswitch:afk' || e.command === 'afkswitch:back')) cache.started = true
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     await refresh($, cache)
-    cache.failed = false
+    if (cache.awaiting) {
+      if (cache.started) {
+        cache.pending = false
+        cache.awaiting = null
+        cache.started = false
+        cache.failed = true
+      }
+    } else cache.failed = false
     $.ui.invalidate('ui.render')
     return next(e)
   })
@@ -145,17 +166,20 @@ export const register: Register = on => {
           cache.failed = true
           return
         }
-        const result = intended === 'afk'
+        // Set before running: an idle session fires command.run inside this call.
+        cache.awaiting = intended
+        cache.started = false
+        intended === 'afk'
           ? await $.command.run({ command: 'afkswitch:afk' })
           : await $.command.run({ command: 'afkswitch:back' })
-        const confirmed = await refresh($, cache)
-        cache.failed = (result.exitCode !== undefined && result.exitCode !== 0) || confirmed !== intended
       } catch {
+        cache.awaiting = null
+        cache.started = false
         cache.failed = true
         // Show disk truth even if command dispatch or completion failed.
         try { await refresh($, cache) } catch { cache.readable = false }
       } finally {
-        cache.pending = false
+        cache.pending = cache.awaiting !== null
         // A redraw error must not escape a button handler into the host.
         try { $.ui.invalidate('ui.render') } catch { /* text commands still work */ }
       }
