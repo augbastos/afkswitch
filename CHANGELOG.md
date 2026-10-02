@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.3] - 2026-10-02
+
+### Changed
+
+- New logo and plugin icon: the Claude Code switch itself, a bordered box with an orange AFK and the away cells. README art follows it, and the README switch cells now match the terminal.
+
 ## [0.6.2] - 2026-10-02
 
 ### Changed
