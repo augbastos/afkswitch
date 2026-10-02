@@ -7,6 +7,11 @@ const PROPS = {
   scroll: { offset: 0, bodyRows: 6 }, view: {},
 }
 const BASE = { type: 'Text' as const, props: {}, children: ['existing band'] }
+const ONBOARDING = [
+  "AFKSwitch is ready — [ AFK □■ ] means you're here.",
+  "Click it when you leave; click again when you're back.",
+  'Use /afk [note] or /back [note] for optional context.',
+]
 const state = (status: string, version = 2) => JSON.stringify({
   version, status, since: '2026-09-30T12:00:00Z', context: null,
   ...(version === 1 ? {} : { generation: 1 }),
@@ -37,6 +42,40 @@ const mount = ($: Engine, surface: 'terminal' | 'desktop' = 'terminal') =>
   $.ui.mount({ plugin: 'afkswitch', surface, component: 'AbovePrompt', props: PROPS })
 
 for (const surface of ['terminal', 'desktop'] as const) {
+  for (const seen of [undefined, 1, 2, '1', 0]) {
+    test(`${surface}: onboarding version ${seen}`, async ($, on) => {
+      setup(on, state('available'))
+      const saved: unknown[] = []
+      on('store.get', () => ({ value: seen }))
+      on('store.set', ($, e) => { saved.push(e); return { value: undefined } })
+      await $.session.start({ cwd: '/test-project', surface, isInteractive: true })
+      const ui = await mount($, surface)
+      const firstUse = typeof seen !== 'number' || seen < 1
+      expect(saved).toHaveLength(firstUse ? 1 : 0)
+      if (firstUse) expect(saved[0]).toMatchObject({ key: 'onboardingVersion', value: 1 })
+      for (const text of ONBOARDING) {
+        const line = await ui.find({ type: 'Text', text })
+        if (firstUse && surface === 'terminal') expect(line?.props).toMatchObject({ dimColor: true })
+        else expect(line).toBeUndefined()
+      }
+      expect(await $.prompt.submit({ text: 'unchanged', wait: false, origin: { kind: 'composer' } }))
+        .toEqual({ text: 'unchanged' })
+      expect(await ui.find({ text: ONBOARDING[0] })).toBeUndefined()
+      if (surface === 'desktop') expect(await ui.drawn()).toEqual(BASE)
+    })
+  }
+  for (const operation of ['store.get', 'store.set'] as const) {
+    test(`${surface}: ${operation} failure skips onboarding`, async ($, on) => {
+      setup(on, state('available'))
+      on('store.get', () => operation === 'store.get' ? { deny: 'synthetic store failure' } : { value: undefined })
+      on('store.set', () => ({ deny: 'synthetic store failure' }))
+      await $.session.start({ cwd: '/test-project', surface, isInteractive: true })
+      const ui = await mount($, surface)
+      expect(await ui.find({ text: ONBOARDING[0] })).toBeUndefined()
+      if (surface === 'desktop') expect(await ui.drawn()).toEqual(BASE)
+      else expect(await ui.find({ key: 'afkswitch-toggle' })).toBeDefined()
+    })
+  }
   for (const [name, raw, cells] of [
     ['available', state('available'), '□■'],
     ['afk', state('afk'), '■□'],
@@ -121,6 +160,7 @@ test(`${before}: double press while command is queued runs only once and removes
   let second: Promise<unknown> | undefined
   try {
     expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
+    expect((await ui.find({ type: 'Text', text: 'saving…' }))?.props).toMatchObject({ dimColor: true })
     expect(await ui.find({ type: 'Text', text: before === 'missing' ? '□□' : '□■' })).toBeDefined()
     second = ui.press({ key: 'afkswitch-toggle' }).catch(() => undefined)
   } finally {
@@ -128,9 +168,25 @@ test(`${before}: double press while command is queued runs only once and removes
     await Promise.all([first, second])
   }
   expect(calls).toBe(1)
+  expect(await ui.find({ text: 'saving…' })).toBeUndefined()
   expect(await ui.find({ text: '■□' })).toBeDefined()
 })
 }
+
+test('first press dismisses onboarding even when the command fails', async ($, on) => {
+  setup(on, state('available'))
+  on('store.get', () => ({ value: undefined }))
+  on('store.set', () => ({ value: undefined }))
+  on('command.run', () => ({ exitCode: 1 }))
+  await $.session.start({ cwd: '/test-project', surface: 'terminal', isInteractive: true })
+  const ui = await mount($)
+  expect(await ui.find({ text: ONBOARDING[0] })).toBeDefined()
+  await ui.press({ key: 'afkswitch-toggle' })
+  expect(await ui.find({ text: ONBOARDING[0] })).toBeUndefined()
+  expect((await ui.find({ type: 'Text', text: 'not switched — try /afk or /back' }))?.props).toMatchObject({ color: '#F28C28' })
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 'synthetic', reason: 'answer' })
+  expect(await ui.find({ text: /not switched/ })).toBeUndefined()
+})
 
 test('missing drawing re-reads an invalid file before dispatch and fails closed', async ($, on) => {
   const disk = setup(on, undefined)
@@ -142,7 +198,7 @@ test('missing drawing re-reads an invalid file before dispatch and fails closed'
   expect(calls).toBe(0)
   expect(await ui.find({ text: '□□' })).toBeDefined()
   expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
-  expect(await ui.find({ type: 'Text', text: /^!$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /not switched/ })).toBeDefined()
 })
 
 test('missing state after dispatch is unconfirmed', async ($, on) => {
@@ -152,7 +208,7 @@ test('missing state after dispatch is unconfirmed', async ($, on) => {
   await ui.press({ key: 'afkswitch-toggle' })
   expect(await ui.find({ text: '□□' })).toBeDefined()
   expect(await ui.find({ text: '■□' })).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /^!$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /not switched/ })).toBeDefined()
 })
 
 test('existence check throwing stays unknown and cannot be pressed', async ($, on) => {
@@ -175,7 +231,7 @@ for (const failure of ['throw', 'exit', 'unconfirmed'] as const) {
     expect(await ui.find({ key: 'afkswitch-toggle' })).toBeDefined()
     expect(await ui.find({ text: '□■' })).toBeDefined()
     expect(await ui.find({ text: '■□' })).toBeUndefined()
-    expect(await ui.find({ type: 'Text', text: /^!$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /not switched/ })).toBeDefined()
   })
 }
 

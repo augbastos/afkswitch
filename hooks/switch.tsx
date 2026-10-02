@@ -2,6 +2,8 @@ import type { EngineInterface, Register } from 'claude-code'
 
 type Status = 'available' | 'afk'
 type ReadStatus = Status | 'missing' | null
+
+let showOnboarding = false
 type Cache = {
   initialized: boolean
   lastGood: ReadStatus
@@ -87,6 +89,14 @@ export const register: Register = on => {
   }
 
   on('session.start', async ($, e, next) => {
+    showOnboarding = false
+    try {
+      const seen = await $.store.get('onboardingVersion')
+      if (!(typeof seen === 'number' && seen >= 1)) {
+        showOnboarding = true
+        await $.store.set('onboardingVersion', 1)
+      }
+    } catch { showOnboarding = false }
     await refresh($, cache)
     cache.failed = false
     $.ui.invalidate('ui.render')
@@ -94,6 +104,8 @@ export const register: Register = on => {
   })
 
   on('prompt.submit', async ($, e, next) => {
+    showOnboarding = false
+    $.ui.invalidate('ui.render')
     await refresh($, cache)
     $.ui.invalidate('ui.render')
     return next(e)
@@ -121,6 +133,7 @@ export const register: Register = on => {
     const press = async () => {
       // The synchronous guard also covers two presses of an old drawing.
       if (cache.pending || intended === null) return
+      showOnboarding = false
       cache.pending = true
       cache.failed = false
       try {
@@ -157,8 +170,15 @@ export const register: Register = on => {
           {cache.pending || intended === null
             ? <Text dimColor={status !== 'afk'}>{cells}</Text>
             : <Button key="afkswitch-toggle" label={cells} plain onPress={press} />}
-          {cache.failed ? <Text color="#F28C28">!</Text> : null}
+          {cache.pending || cache.failed ? <Text>{' '}</Text> : null}
+          {cache.pending ? <Text dimColor>saving…</Text> : null}
+          {cache.failed ? <Text color="#F28C28">not switched — try /afk or /back</Text> : null}
         </Box>
+        {showOnboarding ? <Box flexDirection="column">
+          <Text dimColor>{"AFKSwitch is ready — [ AFK □■ ] means you're here."}</Text>
+          <Text dimColor>{"Click it when you leave; click again when you're back."}</Text>
+          <Text dimColor>Use /afk [note] or /back [note] for optional context.</Text>
+        </Box> : null}
       </Box>
     )
   })

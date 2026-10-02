@@ -73,7 +73,7 @@ One press = one explicit action: the same `/afk` or `/back` skill, without conte
 The switch never flips optimistically: it shows only state confirmed by a fresh read.
 Before first use (no state file yet), the neutral switch (`□□`) is pressable and starts AFK.
 An unreadable or invalid state stays neutral (`□□`) and cannot be pressed. Double presses are blocked
-while an action is pending; `!` marks a failed or unconfirmed action.
+while an action is pending. One-time onboarding lines explain the switch; `saving…` marks a pending action and `not switched — try /afk or /back` marks a failed or unconfirmed action.
 The skill starts a model turn; the host's permissions and costs still apply.
 
 ## Requirements

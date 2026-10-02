@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5] - 2026-10-02
+
+### Added
+
+- One-time onboarding lines explain the switch and optional command context, dismissed on the first prompt or switch press.
+
+### Changed
+
+- Human transition text replaces `!`: dim `saving…` while pending and orange `not switched — try /afk or /back` on failure.
+
 ## [0.6.4] - 2026-10-02
 
 ### Changed
