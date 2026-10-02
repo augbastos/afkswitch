@@ -3,18 +3,21 @@ description: Report incorrect AFKSwitch behavior
 title: "[Bug] "
 labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: Do not paste secrets, tokens or private paths.
   - type: input
     id: version
     attributes:
       label: AFKSwitch version
-      placeholder: "0.4.0"
+      placeholder: "0.6.4"
     validations:
       required: true
   - type: input
     id: host
     attributes:
-      label: Host and version
-      placeholder: "Claude Code 2.x / Codex ..."
+      label: Claude Code version (or other host and version)
+      placeholder: "Claude Code 2.1.287"
     validations:
       required: true
   - type: input
@@ -24,21 +27,40 @@ body:
     validations:
       required: true
   - type: textarea
+    id: terminal
+    attributes:
+      label: Terminal
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      options:
+        - Claude plugin directory
+        - Marketplace from GitHub
+        - --plugin-dir
+        - Other
+    validations:
+      required: true
+  - type: textarea
     id: steps
     attributes:
-      label: Reproduction
-      description: Remove secrets and personal data.
+      label: Minimal reproduction
+      description: List the smallest steps that reproduce the issue, without private paths.
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
       label: Expected behavior
+      description: What should happen with switch rendering, a click, or peer notification?
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
       label: Actual behavior
+      description: What did you see instead with switch rendering, a click, or peer notification?
     validations:
       required: true

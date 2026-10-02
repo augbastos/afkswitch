@@ -31,7 +31,7 @@ A session that has not answered `/back` is *no reply yet* — never "done", "fai
 <!-- capabilities:details:start -->
 | Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
 |---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; installed-marketplace module loading remains unverified. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; marketplace module loading verified on Claude Code 2.1.287 on 2026-10-02, tested on one machine. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
 | Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
 | Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
 | Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
@@ -139,22 +139,28 @@ Personal-skill installation alone does not install plugin hooks or the visual sw
 
 ## Claude Code visual switch
 
-Requires a Claude Code build with the early-access function-hooks API enabled. The
+Requires Claude Code 2.1.287+ with function hooks. AFKSwitch is a Claude Code Mod. The
 plugin ships [hooks/switch.tsx](../hooks/switch.tsx) under `modules` alongside the
 existing command hooks in [hooks/hooks.json](../hooks/hooks.json). A build without
 function hooks can still use the text skills. Strict plugin-manifest validation checks
-this combined layout; testing installed-marketplace module loading remains pending.
+this combined layout. Marketplace module loading was verified on 2.1.287 on
+2026-10-02 in an isolated config, tested on one machine. The Claude plugin directory
+copy currently omits the switch while mods are reviewed; use the GitHub marketplace.
+If your build does not load installed mods, use `claude --plugin-dir <clone>` or
+`CLAUDE_CODE_PLUGIN_DIRS`. See [compatibility](compatibility.md) for the evidence.
 
 The terminal's `AbovePrompt` band draws one compact bordered row, unchanged in size:
 `AFK  □■` (available, dim grey label) or `AFK  ■□` (away, orange `#F28C28` label).
 No context or other words appear. `AFK  □□` is neutral unknown state; `!` marks a
-failed or unconfirmed action. Unknown state is not clickable. Desktop and other
+failed or unconfirmed action. Before first use, a definitely missing state file gives
+the same neutral cells a button that starts AFK. Unreadable or invalid state is not
+clickable and never implies available. Desktop and other
 surfaces continue the original render without drawing the switch in this release;
 tests cover terminal drawing and desktop pass-through, not native pixel or glyph paint.
 
 The module reads only `~/.afkswitch/state.json` using `$.fs.read`, with
 `AFKSWITCH_STATE_DIR` taking priority over `HOME` or `USERPROFILE`. Only version 1/2 and
-status are needed to draw. It never writes, creates or migrates state, and never runs
+valid fields confirm a presence state. It never writes, creates or migrates state, and never runs
 Python to draw. Its module-local cache refreshes at `session.start`, first render after
 load, `prompt.submit`, `turn.complete`, before dispatch and after completion. A bad
 read hides cached presence rather than implying available. No timers or polling.
@@ -170,10 +176,11 @@ another state read confirms the displayed status, and turn completion refreshes 
 
 The API has no Button `disabled` prop. While pending, identical cells are drawn as
 Text instead of a Button, with an immediate guard against old-drawing double presses.
-On errors, the control refreshes disk truth and re-enables only a known-state button.
-Every registered hook has a `next(e)` fallback, including a replay-safe `.catch`.
-Tests intercept command dispatch: actual skill resolution from a module in an
-installed model session still needs verification.
+On errors, the control refreshes disk truth and re-enables a button only for known
+state or a definitely missing file. Registered hooks pass events through unchanged;
+the engine skips a hook that throws. Tests intercept command dispatch. Live clicks
+and peer notification were tested separately from marketplace module loading;
+see [compatibility](compatibility.md).
 
 ## Lifecycle sync
 

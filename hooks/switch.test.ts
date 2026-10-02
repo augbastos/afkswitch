@@ -11,14 +11,18 @@ const state = (status: string, version = 2) => JSON.stringify({
   version, status, since: '2026-09-30T12:00:00Z', context: null,
   ...(version === 1 ? {} : { generation: 1 }),
 })
-type Disk = { raw: string | null; reads: string[] }
+type Disk = { raw: string | null | undefined; reads: string[]; existenceError?: boolean }
 
-const setup = (on: On, raw: string | null, variables = { AFKSWITCH_STATE_DIR: '/test-state' }): Disk => {
-  const disk = { raw, reads: [] as string[] }
+const setup = (on: On, raw: string | null | undefined, variables = { AFKSWITCH_STATE_DIR: '/test-state' }): Disk => {
+  const disk: Disk = { raw, reads: [] }
   mock.env(on, variables)
+  on('fs.exists', () => {
+    if (disk.existenceError) throw new Error('synthetic existence failure')
+    return { value: disk.raw !== undefined }
+  })
   on('fs.read', ($, e) => {
     disk.reads.push(e.path)
-    if (disk.raw === null) return { deny: 'synthetic unreadable file' }
+    if (disk.raw == null) return { deny: 'synthetic unreadable file' }
     return { value: disk.raw }
   })
   on('fs.write', () => { throw new Error('the UI must never write') })
@@ -36,7 +40,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
   for (const [name, raw, cells] of [
     ['available', state('available'), '□■'],
     ['afk', state('afk'), '■□'],
-    ['missing', null, '□□'],
+    ['missing', undefined, '□□'],
+    ['unreadable', null, '□□'],
     ['future', state('available', 99), '□□'],
   ] as const) {
     test(`${surface}: ${name} draws confirmed cells or passes through`, async ($, on) => {
@@ -51,7 +56,11 @@ for (const surface of ['terminal', 'desktop'] as const) {
       expect(await ui.find({ text: 'existing band' })).toBeDefined()
       const label = await ui.find({ type: 'Text', text: /^AFK$/ })
       expect(label?.props).toMatchObject(name === 'afk' ? { color: '#F28C28', dimColor: false } : { dimColor: true })
-      expect(await ui.findAll({ type: 'Button' })).toHaveLength(name === 'available' || name === 'afk' ? 1 : 0)
+      expect(await ui.findAll({ type: 'Button' })).toHaveLength(name === 'available' || name === 'afk' || name === 'missing' ? 1 : 0)
+      if (name === 'missing') {
+        expect(disk.reads).toHaveLength(0)
+        return
+      }
       expect(disk.reads[0].replace(/\\/g, '/')).toMatch(/\/test-state\/state.json$/)
       await ui.drawn()
       expect(disk.reads).toHaveLength(1)
@@ -60,11 +69,12 @@ for (const surface of ['terminal', 'desktop'] as const) {
 }
 
 for (const [before, after, command] of [
+  ['missing', 'afk', 'afkswitch:afk'],
   ['available', 'afk', 'afkswitch:afk'],
   ['afk', 'available', 'afkswitch:back'],
 ] as const) {
   test(`click from ${before} runs exactly ${command} without context`, async ($, on) => {
-    const disk = setup(on, state(before))
+    const disk = setup(on, before === 'missing' ? undefined : state(before))
     const calls: unknown[] = []
     on('command.run', ($, e) => {
       calls.push({ command: e.command, args: e.args, origin: e.origin })
@@ -75,11 +85,11 @@ for (const [before, after, command] of [
     await ui.press({ key: 'afkswitch-toggle' })
     expect(calls).toEqual([{ command, args: '', origin: { kind: 'plugin', name: 'afkswitch' } }])
     expect(await ui.find({ text: after === 'afk' ? '■□' : '□■' })).toBeDefined()
-    expect(disk.reads).toHaveLength(3)
+    expect(disk.reads).toHaveLength(before === 'missing' ? 1 : 3)
   })
 
   test(`another session already changed ${before}: no opposite action`, async ($, on) => {
-    const disk = setup(on, state(before))
+    const disk = setup(on, before === 'missing' ? undefined : state(before))
     let calls = 0
     on('command.run', () => { calls += 1; return {} })
     const ui = await mount($)
@@ -90,8 +100,9 @@ for (const [before, after, command] of [
   })
 }
 
-test('double press while command is queued runs only once and removes the button', async ($, on) => {
-  const disk = setup(on, state('available'))
+for (const before of ['available', 'missing']) {
+test(`${before}: double press while command is queued runs only once and removes the button`, async ($, on) => {
+  const disk = setup(on, before === 'missing' ? undefined : state(before))
   let release!: () => void
   let entered!: () => void
   const running = new Promise<void>(resolve => { entered = resolve })
@@ -110,7 +121,7 @@ test('double press while command is queued runs only once and removes the button
   let second: Promise<unknown> | undefined
   try {
     expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
-    expect(await ui.find({ type: 'Text', text: '□■' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: before === 'missing' ? '□□' : '□■' })).toBeDefined()
     second = ui.press({ key: 'afkswitch-toggle' }).catch(() => undefined)
   } finally {
     release()
@@ -118,6 +129,38 @@ test('double press while command is queued runs only once and removes the button
   }
   expect(calls).toBe(1)
   expect(await ui.find({ text: '■□' })).toBeDefined()
+})
+}
+
+test('missing drawing re-reads an invalid file before dispatch and fails closed', async ($, on) => {
+  const disk = setup(on, undefined)
+  let calls = 0
+  on('command.run', () => { calls += 1; return {} })
+  const ui = await mount($)
+  disk.raw = 'not json'
+  await ui.press({ key: 'afkswitch-toggle' })
+  expect(calls).toBe(0)
+  expect(await ui.find({ text: '□□' })).toBeDefined()
+  expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
+  expect(await ui.find({ type: 'Text', text: /^!$/ })).toBeDefined()
+})
+
+test('missing state after dispatch is unconfirmed', async ($, on) => {
+  setup(on, undefined)
+  on('command.run', () => ({}))
+  const ui = await mount($)
+  await ui.press({ key: 'afkswitch-toggle' })
+  expect(await ui.find({ text: '□□' })).toBeDefined()
+  expect(await ui.find({ text: '■□' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /^!$/ })).toBeDefined()
+})
+
+test('existence check throwing stays unknown and cannot be pressed', async ($, on) => {
+  const disk = setup(on, undefined)
+  disk.existenceError = true
+  const ui = await mount($)
+  expect(await ui.find({ text: '□□' })).toBeDefined()
+  expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
 })
 
 for (const failure of ['throw', 'exit', 'unconfirmed'] as const) {

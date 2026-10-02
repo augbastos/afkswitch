@@ -16,7 +16,7 @@
       "reference": true,
       "invoke": ["/afk", "/back"],
       "native": ["ListAgents", "SendMessage", "notify_when_idle"],
-      "notes": "Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; installed-marketplace module loading remains unverified.",
+      "notes": "Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; marketplace module loading verified on Claude Code 2.1.287 on 2026-10-02, tested on one machine. The Claude plugin directory copy currently omits the switch while mods are reviewed.",
       "evidence": "hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle."
     },
     {

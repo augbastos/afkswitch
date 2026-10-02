@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.4] - 2026-10-02
+
+### Changed
+
+- Before first use, the neutral switch is pressable and starts AFK when no state file exists; unreadable or invalid state remains neutral and cannot be pressed.
+- Reworked the README around installation and first use, with verified marketplace module loading on Claude Code 2.1.287 and the current plugin directory limitation.
+- Replaced the README demo image with a four-step capture showing present, AFK notification, continued peer work and reporting, and return.
+
 ## [0.6.3] - 2026-10-02
 
 ### Changed

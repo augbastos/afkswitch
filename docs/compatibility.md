@@ -4,6 +4,18 @@ Only versions that were actually run are listed. Anything not run is **pending**
 assumed. The support levels themselves are in
 [`adapters/capabilities.json`](../adapters/capabilities.json).
 
+## Marketplace module loading — 2026-10-02
+
+| Host | Version | What was run | Result |
+|---|---|---|---|
+| Claude Code | 2.1.287 | Clean isolated config; `claude plugin install afkswitch@afkswitch` from a local-directory marketplace, without `--plugin-dir` | hooks module loaded; registered `session.start`, `prompt.submit`, `turn.complete`, and `ui.render`; tested on one machine |
+
+This supersedes the earlier marketplace limitation below. Marketplace installs
+now load the module on 2.1.287+ (verified with a local-directory marketplace; a GitHub marketplace source installs the same way). The Claude plugin directory currently serves
+`v0.6.3-directory`, which omits the switch while the directory reviews mods.
+Use the GitHub marketplace for the switch. Module loading alone does not establish
+click or notification behavior; those have separate evidence below.
+
 ## AFKSwitch 0.6.0
 
 | Host | Version | What was run | Result |
@@ -13,15 +25,15 @@ assumed. The support levels themselves are in
 | Claude Code | 2.1.287 | `claude plugin validate --strict .` and `claude plugin validate --strict .claude-plugin/plugin.json`; `claude plugin test .` | both strict checks passed; combined modules/command hooks accepted; 28 UI tests passed, 0 failed |
 | Python | 3.14 | `python scripts/validate.py --write`, `python scripts/validate.py`; `python -m pytest conformance -q -p no:cacheprovider` | validation passed; 331 passed, 1 skipped (POSIX modes on Windows) |
 | Claude Code | 2.1.287 | Disposable interactive sessions in an isolated config, plugin loaded with `--plugin-dir`, terminal switch pressed by a person with the mouse | one click (no Enter) ran `/afkswitch:afk` and `/afkswitch:back`; the helper saved each generation; the other session was notified and its switch redrew on its next event; colors honored, and `NO_COLOR` gave a monochrome switch still readable from the cells; passed |
-| Claude Code | 2.1.287 | Same plugin installed from a local marketplace | skills and command hooks loaded; the hooks module was not loaded ("hooks modules are turned off for installed plugins"), so no switch (host limitation) |
+| Claude Code | 2.1.287 | Earlier run: same plugin installed from a local marketplace | skills and command hooks loaded; module did not load in that run; superseded by the 2026-10-02 verification above |
 
 The hook tests prove script behavior, not host installation or model compliance.
 UI tests exercise terminal descriptions, colors and handlers, plus desktop pass-through,
 not font glyph alignment or native paint. They intercept `command.run`, so they confirm
 the requested names `afkswitch:afk` / `afkswitch:back` and model-independent behavior,
 not actual skill resolution. The live rows above cover that: a person's click resolved
-the skills and notified a peer in a model session. Loading `modules` from a
-marketplace-installed plugin does not work today; that is a host rollout limit.
+the skills and notified a peer in a model session. The 2026-10-02 row separately
+confirms module loading from a marketplace-installed plugin.
 
 Codex 0.159.0 and
 Antigravity CLI 1.2.13 experimental hook files are shipped, not verified in a live host;
