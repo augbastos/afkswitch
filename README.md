@@ -5,14 +5,44 @@
   <img src="assets/readme/hero-light.png" alt="AFKSwitch — away and back presence for your agents">
 </picture>
 
-## Demo
+**AFKSwitch by augbastos** — Tell your agents when you're away and when you're back.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/states-dark.png">
-  <img src="assets/readme/states-light.png" alt="AFKSwitch states: present with □■, away with ■□, and unknown with □□">
-</picture>
+Claude Code knows what its agents are doing. AFKSwitch tells them whether you are at the computer.
 
-<img src="assets/readme/demo.png" alt="Two Claude Code sessions: one click sets AFK and notifies the other session, which keeps working and reports; one click on back ends AFK">
+```text
+[ AFK  □■ ]  you're here
+[ AFK  ■□ ]  you're away
+```
+
+<img src="assets/readme/afkswitch-demo.gif" alt="Real Claude Code capture: present, one click sets AFK and tells the other session, the other session keeps working and reports, one click back">
+
+## Install
+
+```text
+/plugin marketplace add augbastos/afkswitch
+/plugin install afkswitch@afkswitch
+/reload-plugins
+```
+
+Needs Claude Code 2.1.287+ and `python3` (Python 3.9+); the switch appears above the prompt.
+AFKSwitch is a Claude Code Mod.
+
+### Try it in 30 seconds
+
+1. Open two Claude Code sessions in two terminals with AFKSwitch loaded.
+2. Click the switch in one session to set AFK.
+3. Watch the other session get told and continue its authorized work.
+4. Click again to return and collect status.
+
+### Trust
+
+- MIT licensed.
+- Presence is stored in a local state file.
+- No AFKSwitch server, account, telemetry, or network requests.
+- Presence is not permission.
+- One writer: the bundled state helper.
+- Explicit transitions only: a click or `/afk` / `/back`.
+
 
 ## What it does
 
@@ -32,7 +62,7 @@ The Claude Code terminal switch sits above the prompt:
 ```text
 [ AFK  □■ ]    Present
 [ AFK  ■□ ]    Away
-[ AFK  □□ ]    Unknown
+[ AFK  □□ ]    Before first use (press to start AFK), or unknown
 ```
 
 When away, **AFK** is orange (`#F28C28`). The cells move, so the state is readable
@@ -41,41 +71,10 @@ without color in monochrome terminals too.
 Click it once, or focus it with `ctrl+x tab` and press Enter.
 One press = one explicit action: the same `/afk` or `/back` skill, without context.
 The switch never flips optimistically: it shows only state confirmed by a fresh read.
-Unknown state stays neutral (`□□`) and cannot be pressed. Double presses are blocked
+Before first use (no state file yet), the neutral switch (`□□`) is pressable and starts AFK.
+An unreadable or invalid state stays neutral (`□□`) and cannot be pressed. Double presses are blocked
 while an action is pending; `!` marks a failed or unconfirmed action.
 The skill starts a model turn; the host's permissions and costs still apply.
-
-## Install
-
-### Claude Code plugin directory or marketplace
-
-Search for **AFKSwitch** in the Claude plugin directory. The directory can lag behind
-the latest release here. Or add this repository as a marketplace source:
-
-```text
-/plugin marketplace add https://github.com/augbastos/afkswitch
-/plugin install afkswitch@afkswitch
-```
-
-Then use `/afk` and `/back`. For the visual switch, use the local plugin loading
-options under [Requirements](#requirements).
-
-### From GitHub
-
-```sh
-git clone https://github.com/augbastos/afkswitch.git
-claude --plugin-dir ./afkswitch
-```
-
-### Codex
-
-```text
-codex plugin marketplace add https://github.com/augbastos/afkswitch
-codex plugin add afkswitch@afkswitch
-```
-
-Use `$afkswitch:afk` and `$afkswitch:back`. The state folder must be writable;
-see [Codex sandbox setup](docs/details.md#codex-sandbox).
 
 ## Requirements
 
@@ -86,35 +85,13 @@ see [Codex sandbox setup](docs/details.md#codex-sandbox).
   **2.1.287**: one click runs `/afk` or `/back`, peers are notified, and each
   session's switch redraws on its next event. See the [compatibility record](docs/compatibility.md).
 
-**Current limitation:** Claude Code loads hooks modules only from plugins loaded via
-`--plugin-dir` or the `CLAUDE_CODE_PLUGIN_DIRS` setting. Plugins installed from the
-directory or a marketplace get `/afk`, `/back`, and the sync hooks, but **not the
-switch**, until Anthropic enables modules for installed plugins.
-
-Load the cloned plugin folder when starting Claude Code:
-
-```sh
-claude --plugin-dir <folder>
-```
-
-Or set the folder in your Claude Code `settings.json`:
-
-```json
-{
-  "env": {"CLAUDE_CODE_PLUGIN_DIRS": "<folder>"}
-}
-```
-
-The plugin ships `SessionStart` and `UserPromptSubmit` command hooks. They only read
-state and the session transcript tail to sync presence; they never write either file.
+Marketplace installs from GitHub load the switch on Claude Code 2.1.287+;
+module loading was verified on 2026-10-02, tested on one machine.
+The Claude plugin directory copy currently ships without the switch
+(`v0.6.3-directory`) while the directory reviews mods. Install from GitHub using
+the commands above for the switch. If your build does not load installed mods,
+use `claude --plugin-dir <clone>` or `CLAUDE_CODE_PLUGIN_DIRS` to load the clone.
 The visual switch is supported on the terminal only.
-
-The switch is a hooks module (`hooks/switch.tsx`). It hooks `session.start`,
-`prompt.submit` and `turn.complete` only to re-read the state file and redraw; it
-passes each event on unchanged and never edits your prompt. It draws the row through
-`ui.render` on the `AbovePrompt` component. It runs a slash command only when you press
-the switch: `/afkswitch:afk` when you are present, `/afkswitch:back` when you are away,
-once per press and without context.
 
 ## Three rules
 
@@ -139,7 +116,7 @@ Capabilities from [the adapter matrix](adapters/capabilities.json):
 Claude Code sync runs at session start and prompt submission. Codex and Antigravity
 ship experimental hook files, without default wiring or verified live-host sync.
 Their peer notification and return-status collection are unsupported. The switch's
-loading limitation is described above; UI tests do not prove live model behavior.
+installation options are described above; UI tests do not prove live model behavior.
 See [tested versions and evidence](docs/compatibility.md) for the verification limits.
 
 ## What AFKSwitch reads, writes, and sends
@@ -157,6 +134,36 @@ The switch reads only state. There is no daemon, polling, account, or telemetry.
 Claude Code peer messages can include your optional context; host data handling applies.
 
 Read the [Privacy policy](PRIVACY.md) and [Security policy](SECURITY.md).
+
+## Other installation options
+
+### Local clone
+
+```sh
+git clone https://github.com/augbastos/afkswitch.git
+claude --plugin-dir ./afkswitch
+```
+
+### Codex
+
+```text
+codex plugin marketplace add https://github.com/augbastos/afkswitch
+codex plugin add afkswitch@afkswitch
+```
+
+Use `$afkswitch:afk` and `$afkswitch:back`. The state folder must be writable;
+see [Codex sandbox setup](docs/details.md#codex-sandbox).
+
+## How it works
+
+The plugin ships `SessionStart` and `UserPromptSubmit` command hooks. They only read
+state and the session transcript tail to sync presence; they never write either file.
+The switch is a hooks module (`hooks/switch.tsx`). It hooks `session.start`,
+`prompt.submit` and `turn.complete` only to re-read state and redraw; it passes each
+event on unchanged and never edits your prompt. It draws through `ui.render` on
+`AbovePrompt`. A press runs `/afkswitch:afk` when present or before first use, or
+`/afkswitch:back` when away, once per press and without context.
+See the [presence specification](spec/presence.md) for the state contract.
 
 ## Links
 

@@ -21,11 +21,14 @@ Adapters may expose richer UI, but these are the only portable states.
 The Claude Code terminal switch is another explicit input to the same `/afk` and
 `/back` actions, never a second source of truth. It draws one bordered compact row:
 `AFK  □■` for available (dim grey label), `AFK  ■□` for AFK (orange `#F28C28` label),
-and neutral `AFK  □□` for unknown state. The geometry is the same in both known states;
+and neutral `AFK  □□` before first use or for unknown state. The geometry is the same in both known states;
 there is no context, animation, slider or track. A failed action adds only `!`.
 
 Only a read of version 1 or 2 with status `afk` or `available` confirms the drawing.
 Missing, unreadable, malformed or future files never imply available. The module
+distinguishes a definitely missing file from unknown state: before first use, the
+neutral cells are pressable and request `afkswitch:afk`. An existence-check error
+stays unknown. AFK is confirmed only after a valid AFK state is read back. The module
 retains its last good read in a session-local drawing cache, but hides it when a fresh
 read cannot confirm it. It reads at session start, first drawing after module load,
 prompt submission, turn completion, immediately before a click's command and after
@@ -38,7 +41,7 @@ if another session already saved that target, redraw without dispatching a comma
 If that read is unknown, take no action. While dispatch is pending, the cells remain
 visible but cease to be a Button; an immediate guard also prevents a second press
 from an older drawing. Unknown state has no active button. On failure, refresh disk
-truth and re-enable a known-state button; never claim the intended state was saved.
+truth and re-enable a known-state or missing-file button; never claim the intended state was saved.
 
 `$.command.run` uses the plugin skill's name without a slash. The host queues it until
 idle without changing the typed draft. The skill starts a model turn: its existing
@@ -311,7 +314,7 @@ adapter is in [`adapters/README.md`](../adapters/README.md).
 <!-- capabilities:spec:start -->
 | Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
 |---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; installed-marketplace module loading remains unverified. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; marketplace module loading verified on Claude Code 2.1.287 on 2026-10-02, tested on one machine. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
 | Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
 | Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
 | Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |

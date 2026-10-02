@@ -1,9 +1,10 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 type Status = 'available' | 'afk'
+type ReadStatus = Status | 'missing' | null
 type Cache = {
   initialized: boolean
-  lastGood: Status | null
+  lastGood: ReadStatus
   readable: boolean
   pending: boolean
   failed: boolean
@@ -28,14 +29,16 @@ const validContext = (value: unknown): boolean => value === null ||
   (typeof value === 'string' && [...value].length <= 2048 &&
     !/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\ud800-\udfff]/u.test(value))
 
-async function readStatus($: EngineInterface): Promise<Status | null> {
+async function readStatus($: EngineInterface): Promise<ReadStatus> {
   const override = await $.env.get('AFKSWITCH_STATE_DIR')
   const home = override ? undefined : (await $.env.get('HOME')) || (await $.env.get('USERPROFILE'))
   const directory = override || (home ? `${home}/.afkswitch` : undefined)
   if (!directory) return null
 
   try {
-    const text = await $.fs.read(`${directory.replace(/[\\/]+$/, '')}/state.json`)
+    const path = `${directory.replace(/[\\/]+$/, '')}/state.json`
+    if (await $.fs.exists(path) === false) return 'missing'
+    const text = await $.fs.read(path)
     const value: unknown = JSON.parse(text.replace(/^\uFEFF/, ''))
     if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
     const state = value as Record<string, unknown>
@@ -51,12 +54,12 @@ async function readStatus($: EngineInterface): Promise<Status | null> {
         (state.status === 'available' && state.context !== null))) return null
     return state.status
   } catch {
-    // Missing, unreadable, malformed and future state are neutral, never present.
+    // Unreadable, malformed and future state are unknown, never present.
     return null
   }
 }
 
-async function refresh($: EngineInterface, cache: Cache): Promise<Status | null> {
+async function refresh($: EngineInterface, cache: Cache): Promise<ReadStatus> {
   const request = ++cache.revision
   try {
     const status = await readStatus($)
@@ -111,7 +114,7 @@ export const register: Register = on => {
     const status = cache.readable ? cache.lastGood : null
     const cells = status === 'afk' ? '■□' : status === 'available' ? '□■' : '□□'
     // Capture explicit intent from this drawing; never toggle a later disk value.
-    const intended: Status | null = status === 'available' ? 'afk' : status === 'afk' ? 'available' : null
+    const intended: Status | null = status === 'available' || status === 'missing' ? 'afk' : status === 'afk' ? 'available' : null
     const { Box, Text, Button } = $.ui.resolve(e)
     const original = await next(e)
 

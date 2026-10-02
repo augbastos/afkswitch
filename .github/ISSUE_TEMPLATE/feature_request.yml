@@ -3,6 +3,9 @@ description: Propose an improvement that stays inside AFKSwitch's product bounda
 title: "[Feature] "
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: AFKSwitch deliberately stays small — two explicit presence commands using native host capabilities.
   - type: textarea
     id: problem
     attributes:
