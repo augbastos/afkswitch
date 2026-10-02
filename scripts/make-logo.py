@@ -1,6 +1,7 @@
-"""Generate the AFKSwitch pixel-art logo: 'AFK' in a 5x7 pixel font, then an orange switch
-of the same height, on a 24x24 grid. Writes assets/logo-{light,dark}.svg (square, with
-background, used as the plugin icon) and assets/wordmark-{light,dark}.svg (transparent, for the README)."""
+"""Generate the AFKSwitch pixel-art logo: the Claude Code switch itself, a bordered box with
+'AFK' in orange (5x7 pixel font) and the away cells ■□, on a 40x40 grid. Writes
+assets/logo-{light,dark}.svg (square, with background, used as the plugin icon) and
+assets/wordmark-{light,dark}.svg (transparent, for the README)."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -10,30 +11,39 @@ GLYPHS = {
     "K": ["#...#", "#..#.", "#.#..", "##...", "#.#..", "#..#.", "#...#"],
 }
 ORANGE = "#F28C28"
-TOP = 8  # first row of the 7-row band shared by the text and the switch
+SIZE = 40
+BOX = (1, 13, 38, 25)       # border: left, top, right, bottom (inclusive)
+TEXT = (4, 16)              # top-left of 'AFK'; 7 rows tall
+CELLS = (24, 30)            # left x of the filled cell ■ and the hollow cell □, 5x5 each
+CELL_TOP = 17               # cells sit centred on the text band
 
 
 def pixels(ink: str) -> dict:
     grid = {}
+    left, top, right, bottom = BOX
+    for x in range(left, right + 1):
+        grid[(x, top)] = grid[(x, bottom)] = ink
+    for y in range(top, bottom + 1):
+        grid[(left, y)] = grid[(right, y)] = ink
     for i, letter in enumerate("AFK"):
         for dy, row in enumerate(GLYPHS[letter]):
             for dx, cell in enumerate(row):
                 if cell == "#":
-                    grid[(1 + i * 6 + dx, TOP + dy)] = ink
-    for x in range(19, 23):                 # switch: 4 wide, 7 tall, same band as the text
-        for y in range(TOP, TOP + 7):
-            grid[(x, y)] = ORANGE
-    for x in range(20, 22):                 # white window at the top
-        for y in range(TOP + 1, TOP + 4):
-            grid[(x, y)] = "#FFFFFF"
+                    grid[(TEXT[0] + i * 6 + dx, TEXT[1] + dy)] = ORANGE
+    for n, x0 in enumerate(CELLS):
+        for x in range(x0, x0 + 5):
+            for y in range(CELL_TOP, CELL_TOP + 5):
+                edge = x in (x0, x0 + 4) or y in (CELL_TOP, CELL_TOP + 4)
+                if n == 0 or edge:   # ■ filled, □ outline
+                    grid[(x, y)] = ink
     return grid
 
 
 def svg(ink: str, bg: str | None) -> str:
-    """Square logo with background; without one, a wordmark cropped to the text band."""
-    back = f'<rect width="24" height="24" fill="{bg}"/>' if bg else ""
-    box = 'viewBox="0 0 24 24" width="512" height="512"' if bg else \
-        f'viewBox="0 {TOP - 1} 24 9" width="240" height="90"'
+    """Square logo with background; without one, a wordmark cropped to the box."""
+    back = f'<rect width="{SIZE}" height="{SIZE}" fill="{bg}"/>' if bg else ""
+    box = f'viewBox="0 0 {SIZE} {SIZE}" width="512" height="512"' if bg else \
+        f'viewBox="0 {BOX[1] - 1} {SIZE} {BOX[3] - BOX[1] + 3}" width="400" height="150"'
     rects = "".join(f'<rect x="{x}" y="{y}" width="1" height="1" fill="{c}"/>'
                     for (x, y), c in sorted(pixels(ink).items()))
     return (f'<svg xmlns="http://www.w3.org/2000/svg" {box} '
@@ -49,7 +59,8 @@ if __name__ == "__main__":
     (out / "wordmark-dark.svg").write_text(svg("#EDEDED", None), encoding="utf-8")
     # Claude Code reads the plugin icon from .claude-plugin/icon.svg (square, >= 128 px).
     (ROOT / ".claude-plugin" / "icon.svg").write_text(svg("#262626", "#FFFFFF"), encoding="utf-8")
-    # The switch and the word share exactly the same rows.
-    rows = {y for (x, y) in pixels("#000") if x >= 19}
-    assert rows == {y for (x, y) in pixels("#000") if x < 18} == set(range(TOP, TOP + 7))
+    # Everything stays inside the border, and the cells sit inside the text band.
+    grid = pixels("#000")
+    assert all(BOX[0] <= x <= BOX[2] and BOX[1] <= y <= BOX[3] for x, y in grid)
+    assert TEXT[1] <= CELL_TOP and CELL_TOP + 4 <= TEXT[1] + 6
     print(out)
