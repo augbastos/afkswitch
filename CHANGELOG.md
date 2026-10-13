@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.7] - 2026-10-13
+
+### Changed
+
+- A click anywhere inside the switch's box toggles it, not only on the cells. A button
+  takes no color, so "away" now shows as an orange border instead of an orange word.
+
 ## [0.6.6] - 2026-10-02
 
 ### Fixed
