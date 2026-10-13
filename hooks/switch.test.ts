@@ -91,11 +91,21 @@ for (const surface of ['terminal', 'desktop'] as const) {
         expect(disk.reads).toHaveLength(0)
         return
       }
-      expect(await ui.find({ text: cells })).toBeDefined()
       expect(await ui.find({ text: 'existing band' })).toBeDefined()
-      const label = await ui.find({ type: 'Text', text: /^AFK$/ })
-      expect(label?.props).toMatchObject(name === 'afk' ? { color: '#F28C28', dimColor: false } : { dimColor: true })
-      expect(await ui.findAll({ type: 'Button' })).toHaveLength(name === 'available' || name === 'afk' || name === 'missing' ? 1 : 0)
+      const pressable = name === 'available' || name === 'afk' || name === 'missing'
+      expect(await ui.findAll({ type: 'Button' })).toHaveLength(pressable ? 1 : 0)
+      if (pressable) {
+        // The whole inside of the border is the button; "away" shows on the border.
+        const button = await ui.find({ key: 'afkswitch-toggle' })
+        expect(button?.props).toMatchObject({ label: ` AFK  ${cells} `, dimColor: name !== 'afk' })
+        const boxes = await ui.findAll({ type: 'Box' })
+        const border = boxes.find(b => (b.props as { borderStyle?: string })?.borderStyle === 'single')
+        expect((border?.props as { borderColor?: string })?.borderColor).toBe(name === 'afk' ? '#F28C28' : undefined)
+      } else {
+        expect(await ui.find({ text: cells })).toBeDefined()
+        const label = await ui.find({ type: 'Text', text: /^AFK$/ })
+        expect(label?.props).toMatchObject({ dimColor: true })
+      }
       if (name === 'missing') {
         expect(disk.reads).toHaveLength(0)
         return

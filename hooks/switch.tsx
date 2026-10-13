@@ -188,12 +188,22 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {original}
-        <Box flexDirection="row" alignSelf="flex-start" borderStyle="single" paddingX={1} flexShrink={0}>
-          <Text color={status === 'afk' ? '#F28C28' : undefined} dimColor={status !== 'afk'}>AFK</Text>
-          <Text>{'  '}</Text>
+        {/* A Box takes no clicks, so while the switch can be pressed the whole inside of
+            the border is one Button (padding in its label). A Button has no color, so
+            "away" shows on the border instead of the word. */}
+        <Box
+          flexDirection="row"
+          alignSelf="flex-start"
+          borderStyle="single"
+          borderColor={status === 'afk' ? '#F28C28' : undefined}
+          paddingX={cache.pending || intended === null ? 1 : 0}
+          flexShrink={0}
+        >
           {cache.pending || intended === null
-            ? <Text dimColor={status !== 'afk'}>{cells}</Text>
-            : <Button key="afkswitch-toggle" label={cells} plain onPress={press} />}
+            ? <Text color={status === 'afk' ? '#F28C28' : undefined} dimColor={status !== 'afk'}>AFK</Text>
+            : <Button key="afkswitch-toggle" label={` AFK  ${cells} `} plain dimColor={status !== 'afk'} onPress={press} />}
+          {cache.pending || intended === null ? <Text>{'  '}</Text> : null}
+          {cache.pending || intended === null ? <Text dimColor={status !== 'afk'}>{cells}</Text> : null}
           {cache.pending || cache.failed ? <Text>{' '}</Text> : null}
           {cache.pending ? <Text dimColor>saving…</Text> : null}
           {cache.failed ? <Text color="#F28C28">not switched — try /afk or /back</Text> : null}

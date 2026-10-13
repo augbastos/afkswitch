@@ -150,7 +150,8 @@ If your build does not load installed mods, use `claude --plugin-dir <clone>` or
 `CLAUDE_CODE_PLUGIN_DIRS`. See [compatibility](compatibility.md) for the evidence.
 
 The terminal's `AbovePrompt` band draws one compact bordered row, unchanged in size:
-`AFK  □■` (available, dim grey label) or `AFK  ■□` (away, orange `#F28C28` label).
+`AFK  □■` (available, dim grey label) or `AFK  ■□` (away, orange `#F28C28` border).
+While it can be pressed, the whole inside of the border is one button.
 No context or other words appear. `AFK  □□` is neutral unknown state; `!` marks a
 failed or unconfirmed action. Before first use, a definitely missing state file gives
 the same neutral cells a button that starts AFK. Unreadable or invalid state is not

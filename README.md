@@ -65,10 +65,10 @@ The Claude Code terminal switch sits above the prompt:
 [ AFK  □□ ]    Before first use (press to start AFK), or unknown
 ```
 
-When away, **AFK** is orange (`#F28C28`). The cells move, so the state is readable
-without color in monochrome terminals too.
+When away, the switch's border is orange (`#F28C28`). The cells move, so the state is
+readable without color in monochrome terminals too.
 
-Click it once, or focus it with `ctrl+x tab` and press Enter.
+Click anywhere inside the box once, or focus it with `ctrl+x tab` and press Enter.
 One press = one explicit action: the same `/afk` or `/back` skill, without context.
 The switch never flips optimistically: it shows only state confirmed by a fresh read.
 Before first use (no state file yet), the neutral switch (`□□`) is pressable and starts AFK.
