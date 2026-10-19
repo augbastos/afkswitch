@@ -8,7 +8,7 @@ assumed. The support levels themselves are in
 
 | Host | Version | What was run | Result |
 |---|---|---|---|
-| Claude Code | 2.1.287 | Clean isolated config; `claude plugin install afkswitch@afkswitch` from a local-directory marketplace, without `--plugin-dir` | hooks module loaded; registered `session.start`, `prompt.submit`, `turn.complete`, and `ui.render`; tested on one machine |
+| Claude Code | 2.1.287 | Clean isolated config; `claude plugin install afkswitch@afkswitch` from a local-directory marketplace, without `--plugin-dir` | hooks module loaded; registered `session.start`, `prompt.submit`, `turn.complete`, and `ui.render`; tested on Windows |
 
 This supersedes the earlier marketplace limitation below. Marketplace installs
 now load the module on 2.1.287+ (verified with a local-directory marketplace; a GitHub marketplace source installs the same way). The Claude plugin directory currently serves
@@ -50,7 +50,7 @@ fan-in or visual switch is claimed for either host. No live-host experiment was 
 
 The cloud runs above had no model session: they prove the plugin installs with its helper
 and the helper works from there, not that a model follows the skills. That was then run
-with real model sessions on one machine:
+with real model sessions on Windows:
 
 | Host | Version | What was run | Result |
 |---|---|---|---|
