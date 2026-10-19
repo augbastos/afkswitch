@@ -53,7 +53,7 @@ again later.
 - Under heavy contention (many sessions saving back to back) a save can wait longer than 15
   seconds and is refused with `state is busy`; no stress run left a corrupt file or a
   duplicate generation.
-- Tested with real sessions on one machine (Claude Code 2.1.284 and 2.1.285, Codex CLI
+- Tested with real sessions on Windows (Claude Code 2.1.284 and 2.1.285, Codex CLI
   0.156.1), including two sessions saving at the same moment and the 2048-character
   context limit, and by CI on Linux, Windows, and macOS; see
   [compatibility](compatibility.md).

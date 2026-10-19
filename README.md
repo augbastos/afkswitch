@@ -86,7 +86,7 @@ The skill starts a model turn; the host's permissions and costs still apply.
   session's switch redraws on its next event. See the [compatibility record](docs/compatibility.md).
 
 Marketplace installs from GitHub load the switch on Claude Code 2.1.287+;
-module loading was verified on 2026-10-02, tested on one machine.
+module loading was verified on 2026-10-02, tested on Windows.
 The Claude plugin directory copy currently ships without the switch
 (`v0.6.3-directory`) while the directory reviews mods. Install from GitHub using
 the commands above for the switch. If your build does not load installed mods,
