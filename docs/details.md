@@ -37,6 +37,11 @@ A session that has not answered `/back` is *no reply yet* — never "done", "fai
 | Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
 <!-- capabilities:details:end -->
 
+The plugin-directory availability noted above is dated 2026-10-02: that channel's
+`v0.6.3-directory` copy omitted the switch while mods were reviewed. See the
+[installation-channel record](compatibility.md#marketplace-module-loading--2026-10-02)
+for the tested version, platform, installation source and local-clone fallback.
+
 Other hosts: contract only ([`spec/presence.md`](../spec/presence.md) +
 [`spec/state.schema.json`](../spec/state.schema.json)); see
 [writing an adapter](../adapters/README.md). The canonical matrix is
@@ -48,7 +53,7 @@ lifecycle boundary before meaningful work; **notify** proactively delivers to ru
 **fanIn** collects peer status on return; **visualSwitch** exposes explicit visual input
 on the declared surfaces. Claude Code syncs at session start and prompt submission.
 Codex and Antigravity hook files are experimental, not verified in a live host, and
-both advertise sync=false. The root README table is retained unchanged for this change;
+both advertise sync=false. The root README summarizes these capabilities;
 use the canonical matrix above for current support. Codex notify is
 NOT SUPPORTED: `codex queue --thread <id> --message` may start a new turn in the target
 session (wake/credits), and `codex agents` is an interactive browser with no
@@ -139,31 +144,38 @@ Personal-skill installation alone does not install plugin hooks or the visual sw
 
 ## Claude Code visual switch
 
-Requires Claude Code 2.1.287+ with function hooks. AFKSwitch is a Claude Code Mod. The
+Requires Claude Code with function hooks; live-tested on 2.1.287 on Windows.
+AFKSwitch is a Claude Code Mod. The
 plugin ships [hooks/switch.tsx](../hooks/switch.tsx) under `modules` alongside the
 existing command hooks in [hooks/hooks.json](../hooks/hooks.json). A build without
 function hooks can still use the text skills. Strict plugin-manifest validation checks
 this combined layout. Marketplace module loading was verified on 2.1.287 on
-2026-10-02 in an isolated config, tested on Windows. The Claude plugin directory
-copy currently omits the switch while mods are reviewed; use the GitHub marketplace.
+2026-10-02 in an isolated config with a local-directory marketplace, tested on Windows.
+See the [dated installation-channel record](compatibility.md#marketplace-module-loading--2026-10-02)
+for the separate Claude plugin directory limitation.
 If your build does not load installed mods, use `claude --plugin-dir <clone>` or
 `CLAUDE_CODE_PLUGIN_DIRS`. See [compatibility](compatibility.md) for the evidence.
 
 The terminal's `AbovePrompt` band draws one compact bordered row, unchanged in size:
 `AFK  □■` (available, dim grey label) or `AFK  ■□` (away, orange `#F28C28` border).
 While it can be pressed, the whole inside of the border is one button.
-No context or other words appear. `AFK  □□` is neutral unknown state; `!` marks a
-failed or unconfirmed action. Before first use, a definitely missing state file gives
+Click it, or focus it with `ctrl+x tab` and press Enter.
+The button label carries no context. `AFK  □□` is neutral unknown state.
+One-time onboarding lines explain the switch; `saving…` marks a pending action and
+`not switched — try /afk or /back` marks a failed or unconfirmed action.
+Before first use, a definitely missing state file gives
 the same neutral cells a button that starts AFK. Unreadable or invalid state is not
 clickable and never implies available. Desktop and other
 surfaces continue the original render without drawing the switch in this release;
 tests cover terminal drawing and desktop pass-through, not native pixel or glyph paint.
+The cells distinguish presence without relying on color.
 
-The module reads only `~/.afkswitch/state.json` using `$.fs.read`, with
+The module reads presence from `~/.afkswitch/state.json` using `$.fs.read`, with
 `AFKSWITCH_STATE_DIR` taking priority over `HOME` or `USERPROFILE`. Only version 1/2 and
 valid fields confirm a presence state. It never writes, creates or migrates state, and never runs
-Python to draw. Its module-local cache refreshes at `session.start`, first render after
-load, `prompt.submit`, `turn.complete`, before dispatch and after completion. A bad
+Python to draw. Onboarding uses the host's store separately. Its module-local cache
+refreshes at `session.start`, first render after load, `prompt.submit`,
+`turn.complete`, and before dispatch. A bad
 read hides cached presence rather than implying available. No timers or polling.
 
 Clicking a displayed available state requests `$.command.run({ command:
@@ -174,6 +186,12 @@ while busy without touching the typed draft. Each skill invokes a model turn and
 uses its normal helper, notification and return-status flow; host permissions, costs
 and data handling apply. Dispatch settling is not proof of a saved transition: only
 another state read confirms the displayed status, and turn completion refreshes again.
+
+The `command.run` hook only observes the start of the switch's own command: while an
+action is awaiting confirmation, it checks the plugin origin and command name, marks
+the command as started, and passes the event through unchanged. At `turn.complete`,
+if that command started but the refreshed state still does not confirm the requested
+transition, the switch clears the pending action and shows the failure message.
 
 The API has no Button `disabled` prop. While pending, identical cells are drawn as
 Text instead of a Button, with an immediate guard against old-drawing double presses.

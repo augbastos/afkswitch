@@ -10,11 +10,14 @@ assumed. The support levels themselves are in
 |---|---|---|---|
 | Claude Code | 2.1.287 | Clean isolated config; `claude plugin install afkswitch@afkswitch` from a local-directory marketplace, without `--plugin-dir` | hooks module loaded; registered `session.start`, `prompt.submit`, `turn.complete`, and `ui.render`; tested on Windows |
 
-This supersedes the earlier marketplace limitation below. Marketplace installs
-now load the module on 2.1.287+ (verified with a local-directory marketplace; a GitHub marketplace source installs the same way). The Claude plugin directory currently serves
-`v0.6.3-directory`, which omits the switch while the directory reviews mods.
-Use the GitHub marketplace for the switch. Module loading alone does not establish
-click or notification behavior; those have separate evidence below.
+This supersedes the earlier marketplace limitation below for the tested version
+and installation source. It does not separately verify a GitHub marketplace install
+or later host versions. As of 2026-10-02, the Claude plugin directory copy was
+`v0.6.3-directory`, without the switch while mods were reviewed. The README uses this
+repository's GitHub marketplace installation path. If your build does not load
+installed mods, use the [local clone](../README.md#local-clone).
+Module loading alone does not establish click or notification behavior; those have
+separate evidence below.
 
 ## AFKSwitch 0.6.0
 

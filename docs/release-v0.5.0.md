@@ -9,8 +9,10 @@
 - Every change gets a generation number. Messages carry it, so an older message that
   arrives late is ignored instead of undoing a newer `/afk` or `/back`.
 - Two `/afk` or `/back` commands at the same moment can no longer corrupt the file.
-- Context over 2048 characters is refused, never cut. An unreadable state file is kept as a
-  backup before being replaced. A state file from a newer AFKSwitch is never overwritten.
+- Context over 2048 characters is refused, never cut. Malformed state content is copied
+  to a backup before replacement if its bytes can be read. If the file cannot be read,
+  the transition fails and the file stays intact. A state file from a newer AFKSwitch
+  is never overwritten.
 - A conformance suite (state, notify, fan-in) that any future adapter can be tested
   against, and one support matrix that the docs are checked against.
 - CI on Linux, Windows, and macOS.
