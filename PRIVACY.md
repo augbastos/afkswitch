@@ -7,8 +7,9 @@ sessions travel through the host's own mechanisms and are governed by the host.
 
 - stores presence locally in `~/.afkswitch/state.json`: status, the time it began, your
   optional note, and a change counter (`generation`);
-- keeps an unreadable old state file beside it as `state.json.corrupt-<time>`, so nothing
-  you wrote is silently destroyed; you may delete those copies at any time;
+- copies malformed state content to `state.json.corrupt-<time>` before replacing it,
+  provided its bytes can be read; you may delete those copies at any time. If the state
+  file cannot be read, the transition fails and the file stays intact;
 - restricts that folder to your user where the operating system allows it without
   elevation (`0700` / `0600` on macOS and Linux; on Windows it inherits your profile's
   permissions and is never widened);
@@ -48,8 +49,10 @@ or checkpoint file is created. Host transcript retention still follows host poli
 Agent hosts may process prompts, skills, messages, logs, or local files according to their
 own terms and privacy policies. AFKSwitch does not control host-level data handling.
 
-The optional Claude Code terminal visual switch reads only the local state file using
+The optional Claude Code terminal visual switch reads presence from the local state file using
 the function-hooks filesystem API (`AFKSWITCH_STATE_DIR` overrides the home location).
+At session start it also reads the host store's `onboardingVersion` marker and writes
+`1` when no numeric value of at least `1` is present, to show onboarding once.
 It uses version and status for a session-local drawing cache, never displays your
 context, and never writes or migrates state, reads transcripts, starts Python during
 render, polls or makes network requests. A click runs the same `afkswitch:afk` or
