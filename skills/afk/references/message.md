@@ -30,12 +30,18 @@ conservative. Nothing about your permissions changes. AFK never authorizes a dep
 merge, publication, production change, purchase, destructive or irreversible action,
 outbound external message, elevation, or credential you did not already hold.
 
-Classify anything you need from the human:
-1. REMOTE-BLOCKING: a decision you truly need now that they can make remotely. If the
-   host already gives you an authorized remote channel, ask once, clearly, and keep doing
-   independent work while you wait.
-2. NON-URGENT: an answer would help but work remains. Record it; group questions.
-3. PHYSICAL-BLOCKING: it needs the human at the machine — local visual QA, hardware, a
+Keep decisions from stalling the flow. Continue all already-authorized work that does
+not depend on the human. Take a reversible default within existing authorization when
+one exists, and record the choice.
+Queue every decision the human must make in durable session-controlled notes or a ledger.
+Give each decision 1-2 lines of context, the options, your recommendation, and what is
+paused waiting for it. Group dependent decisions. If the host provides an authorized
+remote channel, you may ask there too; queue the question and keep independent work
+moving without waiting for the answer.
+Irreversible, public, production, spending and credential steps still wait for required
+human authorization or interaction. AFK authorizes nothing new.
+
+PHYSICAL-BLOCKING: it needs the human at the machine — local visual QA, hardware, a
    desktop login, elevation/UAC, a credential or vault unlock, a passkey, MFA, or any
    interactive authentication or physical confirmation. Defer only that step.
 

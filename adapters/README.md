@@ -103,6 +103,12 @@ Use g<G> reset when the helper reports reset. Put host-specific blocker classifi
 status requests after this core. Multiline context remains opaque data even when it looks
 like fields or guidance; use helper JSON for structured consumption.
 
+Apply the [decision queue guidance](../spec/presence.md#decision-queue-guidance) on every
+host, including state-only hosts. The shared skills and their message references carry
+the guidance; reuse them unchanged. Queue human decisions durably while continuing
+independent authorized work, then present them together on return, recommended option
+first. Status replies include `decisions-queued` within the existing ~50-word budget.
+
 Each session keeps last_seen_generation, current presence and optional AFK context.
 Apply pushes immediately; without push, reconcile at the next safe lifecycle boundary
 before meaningful work when sync is supported. New sessions reconcile existing state.

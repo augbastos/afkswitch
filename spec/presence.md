@@ -95,6 +95,51 @@ different event context still keeps `since` and `generation`: presence is unchan
 
 Returning never means "approval granted."
 
+## Decision queue guidance
+
+While AFK, continue all already-authorized work that does not depend on the human.
+Take a reversible default within existing authorization when one exists, and record it.
+Queue every decision the human must make in durable session-controlled notes or a ledger:
+one entry per decision with 1-2 lines of context, the options, a recommendation, and what
+is paused waiting for it. Group dependent decisions. No new path or file format is required.
+An authorized remote channel may still be used to ask; also queue the question and
+continue independent work without waiting for the answer.
+
+Irreversible, public, production, spending and credential steps still wait for required
+human authorization or interaction. AFK authorizes nothing new. Defer physical blockers.
+Do not start anything that can predictably raise an interactive prompt, and do not run a
+command just to find out whether it prompts. A reasonable chance is enough to defer.
+
+At the next natural pause after `/back`, present all queued decisions to the human
+together as a sequence of multiple-choice questions, recommended option first. Use the
+host's structured question tool when available, with successive batches in the same
+sitting if it limits each call. Include each entry's context, options, recommendation
+and paused work; group dependent decisions. Then resume normal present-mode behavior:
+ask in real time. Only dependent steps wait for an answer; independent authorized work continues.
+Apply this guidance locally even on hosts without peer messaging or status collection.
+The queue belongs to the session, not the shared presence state or event context.
+
+### Return status reply
+
+When status collection is supported, reply to the requesting session at the next natural
+pause using these lines, under ~50 words for the entire reply, without narrative:
+
+```text
+afkswitch-status g<G>
+dir: <working directory or project>
+needs-human: <human blocker and exact resume step> (or none)
+decisions-queued: <n> (presented to the human on return) or none
+completed: <work finished while AFK> (or none)
+running: <work still running> (or none)
+other-blockers: <problems not needing the human> (or none)
+```
+
+Count unresolved queued decisions, not groups; use `none` for an empty queue. Keep
+pending decision blockers in `needs-human` too. Present the full questions separately
+to the human; the status word budget does not limit the queue review. The parenthetical
+describes the return workflow, not proof of an answer or approval. No report may invent
+another session's queue or claim that a silent session has none.
+
 ## State protocol v2
 
 ### File

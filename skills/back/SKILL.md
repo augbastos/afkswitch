@@ -1,6 +1,6 @@
 ---
 name: back
-description: Mark the human as physically present from any session, save presence, and notify peers and collect status when supported. Use only on explicit /back; never infer it from conversation. Presence changes no permissions.
+description: Save present status; notify peers and collect status when supported. Explicit /back only; never infer it. Presence changes no permissions.
 disable-model-invocation: true
 ---
 
@@ -57,6 +57,8 @@ It prints one JSON line. Use only its fields in what follows:
 (`"changed": false` keeps `since` and `generation`).
 
 ## 2. Notify live sibling sessions and request status (Claude Code reference adapter)
+
+After saving, apply the queue guidance in references/message.md locally.
 
 When the host exposes `ListAgents` and `SendMessage`:
 
