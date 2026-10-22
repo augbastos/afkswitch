@@ -86,6 +86,11 @@ only steps that need you wait. `/back` collects a summary with what needs you fi
 then what got done. Optional context is information, never permission; `/back` context
 belongs to that return event and is not saved in the state file.
 
+While AFK, sessions keep a durable decision queue and record reversible choices within
+existing authorization. Independent authorized work continues. At the next natural pause
+after `/back`, each session presents all queued decisions together as multiple-choice
+questions, recommended option first, then resumes asking in real time.
+
 Click the terminal switch to run the same skills without context. Each invocation
 starts a model turn; the host's permissions and costs still apply.
 

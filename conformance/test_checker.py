@@ -46,6 +46,27 @@ def test_parse_reply_needs_the_generation_header():
     assert checker.parse_reply("dir: x\nneeds-human: none") is None
 
 
+@pytest.mark.parametrize("queued", ["2 (presented to the human on return)", "none"])
+def test_return_status_accepts_decision_count_within_word_budget(queued):
+    text = ("afkswitch-status g3\ndir: project\n"
+            "needs-human: choose storage; resume: implement storage\n"
+            f"decisions-queued: {queued}\ncompleted: tests\n"
+            "running: docs\nother-blockers: none")
+    assert len(text.split()) < 50
+    parsed = checker.parse_reply(text)
+    assert parsed["fields"]["decisions-queued"] == queued
+    transcript = {
+        "self": "sender", "generation": 3, "requested": ["peer"],
+        "replies": [{"from": "peer", "to": "sender", "text": text}],
+        "report": {"replied": ["peer"], "no_reply": [], "requested_count": 1,
+                   "needs_you_now": ["peer"], "sections": ["needs_you_now"]},
+    }
+    assert checker.check_fan_in(transcript) == []
+    transcript["report"]["needs_you_now"] = []
+    assert any(v.startswith("HUMAN_BLOCKER_MISSING:")
+               for v in checker.check_fan_in(transcript))
+
+
 def test_cli_exits_nonzero_for_a_failing_recording(tmp_path):
     failing = next(s for s in SCENARIOS if s["expect"] == "fail")
     recording = dict(failing)

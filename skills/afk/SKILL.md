@@ -1,6 +1,6 @@
 ---
 name: afk
-description: Mark the human as physically away, save presence, and notify peers when the host supports it. Use only on explicit /afk; never infer it from conversation. Presence changes no permissions.
+description: Save physically-away presence and notify peers when supported. Use only on explicit /afk; never infer it from conversation. Presence changes no permissions.
 disable-model-invocation: true
 ---
 
@@ -71,6 +71,8 @@ An idempotent repeat keeps `since` and `generation` (`"changed": false`). Malfor
 are backed up as `state.json.corrupt-<time>`; version 1 is migrated automatically.
 
 ## 2. Notify live sibling sessions (Claude Code reference adapter)
+
+After saving, apply the queue guidance in references/message.md locally.
 
 When the host exposes `ListAgents` and `SendMessage`:
 

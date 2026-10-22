@@ -353,8 +353,10 @@ if any("__pycache__" in n or n.endswith(".pyc") for n in names):
 if any(".test." in Path(n).name for n in names):
     fail("the plugin archive must not contain function-hook tests")
 with zipfile.ZipFile(zip_path) as z:
-    for script in (HELPER, BACK_HELPER, ROOT / "hooks/switch.tsx", ROOT / "hooks/hooks.json"):
+    guidance = [skill_root / name / rel for name in skill_dirs
+                for rel in ("SKILL.md", "references/message.md")]
+    for script in (HELPER, BACK_HELPER, ROOT / "hooks/switch.tsx", ROOT / "hooks/hooks.json", *guidance):
         if z.read(script.relative_to(ROOT).as_posix()) != script.read_bytes():
-            fail("an archived helper or function-hook file differs from its repository copy")
+            fail("an archived helper, function-hook or guidance file differs from its repository copy")
 
 print(f"AFKSwitch {version} validation passed.")

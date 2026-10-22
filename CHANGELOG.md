@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Queue human decisions while AFK without stalling independent authorized work; review them together on return and include their count in status replies.
+
 ## [0.6.8] - 2026-10-19
 
 ### Changed

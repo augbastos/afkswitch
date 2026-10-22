@@ -17,7 +17,16 @@ If another skill already answers to `/afk` or `/back`, use `/afkswitch:afk` and
 `/afkswitch:back`. In Codex, always use `$afkswitch:afk` and `$afkswitch:back`: a bare
 `$afk` can resolve to a different skill with the same name.
 
-While you are away, each session records anything that needs you as one line:
+While you are away, each session queues human decisions in its durable notes or ledger:
+1-2 lines of context, options, recommendation and paused work per decision, grouping
+dependencies. It records reversible defaults within existing authorization and continues
+independent work. Authorized remote questions also enter the queue without stalling work.
+At the next natural pause after `/back`, it presents all decisions together as
+multiple-choice questions, recommended option first, using the host's structured question
+tool when available. Then it returns to asking in real time. Status replies include
+`decisions-queued` within the ~50-word budget; the full questions are presented separately.
+
+Each session also records deferred steps as one line:
 
 ```text
 BLOCKED FOR HUMAN (physical): restart local service — stopped at elevation prompt — needs UAC — resume with: restart, then smoke test
