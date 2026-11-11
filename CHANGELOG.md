@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-11-11
+
+### Changed
+
+- The README says exactly what the switch runs by itself: one slash command per click, a `command.run` listener for its own command, and a read of the home folder path.
+
 ## [0.7.0] - 2026-11-11
 
 ### Fixed
