@@ -16,9 +16,11 @@ All notable changes to this project are documented here. Format follows
 
 ### Changed
 
+- While you are away, sessions are told not to make a call that would open the host's own approval prompt: they defer that one step and keep going, and stop only when everything left needs you.
+- In Claude Code, an approval prompt that opens while you are away is declined instead of left waiting, with a note to defer that step and keep working. It never approves anything. `AFKSWITCH_KEEP_PROMPTS=1` keeps the prompts.
 - Presence notes print the context as one quoted JSON string (`context: "sleep"`), so context text cannot pose as part of the note.
 - The switch is also drawn in the Claude Code desktop app.
-- While you are away, a small label beside the switch names the kind of absence found in your `/afk` text (sleeping, at work, shopping, travelling), or now and then shows an idle one. No timer; the text itself is never drawn.
+- While you are away, a small label beside the switch names the kind of absence found in your `/afk` text (sleeping, at work, shopping, traveling). With no text at all, an idle label shows now and then for 8 seconds, its emoji blinking for the first 3. The text itself is never drawn.
 - CI runs the switch module tests on Linux, Windows and macOS.
 - The plugin archive no longer carries the README pictures.
 - Queue human decisions while AFK without stalling independent authorized work; review them together on return and include their count in status replies.

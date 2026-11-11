@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Read-only, one-shot lifecycle presence injection. Errors never block the host."""
+"""Read-only, one-shot presence hooks: lifecycle injection, and declining approval prompts while away.
+
+Errors never block the host: any failure prints nothing, which leaves the host's own flow unchanged.
+"""
 from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import sys
 from functools import lru_cache
@@ -77,9 +81,38 @@ def last_marker(path):
     return (int(last.group(1)), bool(last.group(2))) if last else (0, False)
 
 
+DECLINED = ("AFKSwitch: the human is away, so nobody can answer this approval prompt. It was declined "
+            "instead of leaving the session waiting. Do not retry it and do not look for another way to "
+            "do the same thing. Record this step as deferred for the human and continue with work that "
+            "needs no approval.")
+
+
+def decline_prompt(data: dict):
+    """While AFK, answer the host's approval prompt with "not now". It never grants anything.
+
+    Any doubt (no state, unreadable or future state, the opt-out) leaves the prompt as it is.
+    """
+    if os.environ.get("AFKSWITCH_KEEP_PROMPTS", "").strip().lower() in ("1", "true", "yes"):
+        return None  # for people who approve prompts remotely while away
+    tool_input = data.get("tool_input")
+    command = tool_input.get("command") if isinstance(tool_input, dict) else None
+    if isinstance(command, str) and "afkswitch_state.py" in command:
+        # /back and /afk run the state helper: declining that would lock the human out of
+        # returning. The prompt is only left as it is, never approved.
+        return None
+    helper = load_helper()
+    prior = helper.load(helper.state_dir() / "state.json")
+    if prior.state is None or prior.kind == "future" or prior.state["status"] != "afk":
+        return None
+    return {"hookSpecificOutput": {"hookEventName": "PermissionRequest",
+                                   "decision": {"behavior": "deny", "message": DECLINED, "interrupt": False}}}
+
+
 def response(host: str, event: str, data: dict):
     if not isinstance(data, dict):
         return None
+    if host == "claude" and event == "PermissionRequest":
+        return decline_prompt(data)
     if host in ("claude", "codex"):
         if event not in ("SessionStart", "UserPromptSubmit"):
             return None

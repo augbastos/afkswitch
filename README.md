@@ -101,8 +101,9 @@ starts a model turn; the host's permissions and costs still apply.
    sync hooks read it; peers are notified only after a successful save and read-back.
 2. **Explicit actions only.** Only `/back` ends AFK, including through the switch.
    Time passing, a remote reply, or a session restart never means you returned.
-3. **Presence is not permission.** Away does not mean unreachable or authorize new
-   actions. Only the step that needs you waits; independent authorized work continues.
+3. **Presence is not permission.** Away never authorizes anything. In Claude Code, an
+   approval prompt that opens while you are away is declined instead of left waiting
+   (`AFKSWITCH_KEEP_PROMPTS=1` keeps the prompts; `/back` itself is never declined). Away does not mean unreachable. Only the step that needs you waits; independent authorized work continues.
 
 ## What AFKSwitch reads, writes, and sends
 
@@ -117,7 +118,10 @@ AFKSwitch runs no server and makes no network requests of its own. Messages betw
 sessions travel through the host's own mechanisms and are governed by the host.
 
 Read-only sync hooks inspect state and a bounded session transcript tail, then exit.
-The switch reads presence from state. There is no daemon, polling, account, or telemetry.
+A third read-only hook declines Claude Code's approval prompts while you are away.
+The switch reads presence from state. While you are away it also matches your context
+against a short word list to draw a label such as `💤 sleeping` beside it; the text itself
+is never drawn. There is no daemon, polling, account, or telemetry.
 Claude Code peer messages can include your optional context; host data handling applies.
 
 Read the [Privacy policy](PRIVACY.md) and [Security policy](SECURITY.md).

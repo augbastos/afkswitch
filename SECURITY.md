@@ -23,8 +23,12 @@ reconciled. They run `scripts/presence_hook.py`, read `~/.afkswitch/state.json` 
 that helper and the end of the session transcript (the last 256 KiB, widening to 4 MiB and at most 64 MiB only while no marker is found) for the last AFKSwitch
 marker, and output the universal presence event as host context only when needed.
 Antigravity's PreInvocation variant reads state only and emits an ephemeral AFK event.
-Hooks never write state or transcripts, change permissions, poll, run in the background
-or use the network. Errors exit 0 with no output; a broken hook cannot block the host,
+These hooks never write state or transcripts, change permissions, poll, run in the
+background or use the network. In Claude Code a third read-only hook, `PermissionRequest`,
+declines the host's own approval prompts while the saved state is `afk`: it outputs a deny
+decision and never an allow, so the worst a forged state file can do is make prompts be
+declined. It leaves the prompt alone for the state helper's own command and when
+`AFKSWITCH_KEEP_PROMPTS` is `1`, `true` or `yes`. Errors exit 0 with no output; a broken hook cannot block the host,
 but may leave session awareness stale. Codex and Antigravity hook files are experimental,
 not selected by default manifests and not verified in a live host.
 

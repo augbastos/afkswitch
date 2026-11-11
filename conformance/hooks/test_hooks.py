@@ -253,3 +253,67 @@ def test_bad_arguments_are_silent(files, monkeypatch, capsys):
             patch.setattr(sys, "stdin", io.StringIO("{}"))
             assert hook.main(args) == 0
     assert capsys.readouterr() == ("", "")
+
+
+# ------------------------------------------------------------------ approval prompts while away
+
+PROMPT = '{"hook_event_name": "PermissionRequest", "tool_name": "Bash", "tool_input": {"command": "git push"}}'
+
+
+def test_approval_prompt_is_declined_while_away_and_never_granted(files, monkeypatch):
+    path, _ = files
+    monkeypatch.delenv("AFKSWITCH_KEEP_PROMPTS", raising=False)
+    state(path)
+    result = call(files, monkeypatch, "claude", "PermissionRequest", raw=PROMPT)
+    decision = result["hookSpecificOutput"]["decision"]
+    assert result["hookSpecificOutput"]["hookEventName"] == "PermissionRequest"
+    assert decision["behavior"] == "deny" and decision["interrupt"] is False
+    assert "deferred" in decision["message"] and "continue" in decision["message"]
+    assert "allow" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("raw", [None, b"", b"not json", b'{"version":99}', b"\xff"])
+def test_approval_prompt_is_left_alone_when_presence_is_unknown(files, monkeypatch, raw):
+    monkeypatch.delenv("AFKSWITCH_KEEP_PROMPTS", raising=False)
+    if raw is not None:
+        files[0].write_bytes(raw)
+    assert call(files, monkeypatch, "claude", "PermissionRequest", raw=PROMPT) is None
+
+
+def test_approval_prompt_is_left_alone_when_present_or_opted_out(files, monkeypatch):
+    path, _ = files
+    monkeypatch.delenv("AFKSWITCH_KEEP_PROMPTS", raising=False)
+    state(path, "available")
+    assert call(files, monkeypatch, "claude", "PermissionRequest", raw=PROMPT) is None
+    state(path)
+    for value in ("1", "true", "YES", " yes "):
+        monkeypatch.setenv("AFKSWITCH_KEEP_PROMPTS", value)
+        assert call(files, monkeypatch, "claude", "PermissionRequest", raw=PROMPT) is None, value
+    for value in ("", "0", "false", "no"):
+        monkeypatch.setenv("AFKSWITCH_KEEP_PROMPTS", value)
+        assert call(files, monkeypatch, "claude", "PermissionRequest", raw=PROMPT) is not None, value
+
+
+@pytest.mark.parametrize("command", ['python3 "/plugins/afkswitch/skills/back/scripts/afkswitch_state.py" back',
+                                     "py -3 skills/afk/scripts/afkswitch_state.py afk --context 'still away'"])
+def test_the_state_helper_itself_is_never_declined_so_back_always_works(files, monkeypatch, command):
+    monkeypatch.delenv("AFKSWITCH_KEEP_PROMPTS", raising=False)
+    state(files[0])
+    raw = json.dumps({"hook_event_name": "PermissionRequest", "tool_name": "Bash", "tool_input": {"command": command}})
+    assert call(files, monkeypatch, "claude", "PermissionRequest", raw=raw) is None
+
+
+@pytest.mark.parametrize("raw", ['{"tool_name": "Edit", "tool_input": {"file_path": "x"}}', '{"tool_name": "Bash"}',
+                                 '{"tool_name": "Bash", "tool_input": "afkswitch_state.py"}', '{}'])
+def test_other_tools_and_odd_inputs_are_still_declined_while_away(files, monkeypatch, raw):
+    monkeypatch.delenv("AFKSWITCH_KEEP_PROMPTS", raising=False)
+    state(files[0])
+    result = call(files, monkeypatch, "claude", "PermissionRequest", raw=raw)
+    assert result["hookSpecificOutput"]["decision"]["behavior"] == "deny"
+
+
+@pytest.mark.parametrize("host", ["codex", "agy"])
+def test_only_claude_code_declines_prompts(files, monkeypatch, host):
+    monkeypatch.delenv("AFKSWITCH_KEEP_PROMPTS", raising=False)
+    state(files[0])
+    assert call(files, monkeypatch, host, "PermissionRequest", raw=PROMPT) is None

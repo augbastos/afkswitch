@@ -18,36 +18,104 @@ type Cache = {
   context: string | null
   ticks: number
   idle: string | null
+  timer: { cancel(): void } | null
+  blinkOff: boolean
+  shown: boolean
+  arm: (() => { cancel(): void }) | null
 }
 
 // A short label beside the switch while away. It names a kind of absence found in the
 // AFK context by keyword; the context text itself is never drawn.
+// Plain keyword hits, not understanding: the earliest hit in the text wins, then row order.
+// The lists are narrow on purpose: an /afk note is often about the agent's work, not the human's.
 const KINDS: [RegExp, string][] = [
-  // Plain keyword hits anywhere in the text; the first row that matches wins.
-  [/\b(work(?!out|ing out)\w*|jobs?|office|shifts?|trabalh\w*|turno)\b/i, '💼 at work'],
-  [/\b(sleep\w*|nap\w*|bed(time)?|dormi\w*|sono)\b/i, '💤 sleeping'],
-  [/\b(shop\w*|grocer(y|ies)|supermarket|compras?|mercado)\b/i, '🛒 shopping'],
-  [/\b(travel\w*|trips?(?! ?wire)|flights?|airport|vacation|viag\w*|viaj\w*|voo|aeroporto)\b/i, '✈️ travelling'],
+  [/(?:^\s*work(?:ing)?\s*$|\b(?:(?:at|to|from|for|after|before|off)\s+work|night shift|shift work|meetings?|(?<!post |box |out of )office(?! hours)|trabalh\w*|turnos?|reuni\w*|escrit[oó]rio|expediente|emprego)\b)/i, '💼 at work'],
+  [/\b(?:sleep(?!\s*mode)(?:s|ing|y)?|asleep|slept|nap(?:s|ping|ped)?|bedtime|(?:go|going|off) to bed|in bed|good ?night|dorm(?:ir|indo|i|e)\w*|sono|soneca|cochil\w*|cama|boa noite)\b/i, '💤 sleeping'],
+  [/\b(?:(?<!coffee )shop(?:s|ping|ped)?|grocer(?:y|ies)|supermarket|mall|(?:super)?mercado(?! (?:livre|pago|financeiro|de trabalho))|compras?|compr(?:ar|ando|ei))\b/i, '🛒 shopping'],
+  [/\b(?:travel(?:s|ing|ling|ed|led)?|trip to|(?:business|road|weekend|day|work)[ -]trips?|flights?(?! sim)|fly(?:ing)?|flew|airport|vacation|holidays?|viag(?:em|ens)|viaj\w*|v[oô]os?|aeroportos?|f[eé]rias|feriado|rodovi[aá]ria)\b/i, '🛫 traveling'],
 ]
-// With no known kind, one of these shows now and then: on every third prompt or finished
-// turn, and only then. No timer runs.
+// With no note at all, one of these shows now and then: on every third prompt or finished
+// turn, for IDLE_MS, then it is gone. Two timers run only meanwhile; nothing polls.
 const IDLE = [
   '🌳 at the park', '💃 dancing', '💬 chatting', '☕ coffee break',
   '🚶 out for a walk', '🎧 listening to music', '🍜 grabbing a bite', '📚 reading',
+  '🦆 arguing with a duck', '🧦 hunting the other sock', '🍕 negotiating with a pizza',
+  '🐈 being ignored by a cat', '🪴 talking to the plants',
 ]
+// About one idle label in twenty comes from this list instead.
+const RARE = ['🛸 abducted, back soon', '👻 haunting the hallway', '🌀 stuck in a time loop']
+const RARE_CHANCE = 0.05
+// Exported for the tests, which pass fixed numbers in place of the two dice.
+export const pickIdle = (pool = Math.random(), which = Math.random()): string => {
+  const from = pool < RARE_CHANCE ? RARE : IDLE
+  return from[Math.floor(which * from.length)]
+}
 const IDLE_EVERY = 3
+const IDLE_MS = 8000
+const BLINK_MS = 600
+const BLINK_FOR_MS = 3000  // then the label holds still until IDLE_MS
 
-const kindOf = (context: string | null): string | null =>
-  context === null ? null : KINDS.find(([words]) => words.test(context))?.[1] ?? null
+function kindOf(context: string | null): string | null {
+  if (context === null) return null
+  let best: string | null = null
+  let at = Infinity
+  for (const [words, label] of KINDS) {
+    const found = context.search(words)
+    if (found >= 0 && found < at) { at = found; best = label }
+  }
+  return best
+}
 
-function tick(cache: Cache): void {
-  if (!cache.readable || cache.lastGood !== 'afk') {
+function stopIdle(cache: Cache): void {
+  cache.timer?.cancel()
+  cache.timer = null
+  cache.idle = null
+  cache.blinkOff = false
+}
+
+function tick($: EngineInterface, cache: Cache): void {
+  if (!cache.readable) return  // an unreadable state is unknown, not a return: leave things as they are
+  // Idle labels are for an absence with no note, on a surface that draws the switch.
+  if (cache.lastGood !== 'afk' || cache.context !== null || !cache.shown) {
     cache.ticks = 0
-    cache.idle = null
+    stopIdle(cache)
     return
   }
   cache.ticks += 1
-  cache.idle = cache.ticks % IDLE_EVERY === 0 ? IDLE[Math.floor(Math.random() * IDLE.length)] : null
+  if (cache.ticks % IDLE_EVERY !== 0) return  // a label already showing keeps its own clock
+  stopIdle(cache)
+  try {
+    // Prefer the timers armed from session.start; ones started from a later event are the fallback.
+    cache.timer = cache.arm ? cache.arm() : showIdle($, cache)
+    cache.idle = pickIdle()
+  } catch {
+    stopIdle(cache)  // no timer, no label: a label must never outlive its clock
+  }
+}
+
+// While an idle label shows, its emoji blinks for BLINK_FOR_MS; after IDLE_MS the label is gone
+// and every timer has stopped.
+function showIdle($: EngineInterface, cache: Cache): { cancel(): void } {
+  let beats = 0
+  const blink = $.clock.every(BLINK_MS, () => {
+    beats += 1
+    cache.blinkOff = beats * BLINK_MS < BLINK_FOR_MS ? !cache.blinkOff : false
+    if (beats * BLINK_MS >= BLINK_FOR_MS) blink.cancel()
+    $.ui.invalidate('ui.render')
+  })
+  try {
+    const hide = $.clock.after(IDLE_MS, () => {
+      blink.cancel()
+      cache.timer = null
+      cache.idle = null
+      cache.blinkOff = false
+      $.ui.invalidate('ui.render')
+    })
+    return { cancel: () => { blink.cancel(); hide.cancel() } }
+  } catch (error) {
+    blink.cancel()
+    throw error
+  }
 }
 
 // Mirror parse_since/context_problem/problems_v1/problems_v2 in the state helper.
@@ -136,10 +204,12 @@ export const register: Register = on => {
   const cache: Cache = {
     initialized: false, lastGood: null, readable: false,
     pending: false, awaiting: null, started: false, failed: false, revision: 0,
-    context: null, ticks: 0, idle: null,
+    context: null, ticks: 0, idle: null, timer: null, blinkOff: false, shown: false, arm: null,
   }
 
   on('session.start', async ($, e, next) => {
+    cache.arm = () => showIdle($, cache)
+    cache.shown = drawn(e.surface)
     showOnboarding = false
     try {
       // Spend the one-time onboarding only where it is shown.
@@ -159,7 +229,7 @@ export const register: Register = on => {
     showOnboarding = false
     $.ui.invalidate('ui.render')
     await refresh($, cache)
-    tick(cache)
+    tick($, cache)
     $.ui.invalidate('ui.render')
     return next(e)
   })
@@ -180,20 +250,25 @@ export const register: Register = on => {
         cache.failed = true
       }
     } else cache.failed = false
-    tick(cache)
+    tick($, cache)
     $.ui.invalidate('ui.render')
     return next(e)
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!drawn(e.surface)) return next(e)
+    cache.shown = drawn(e.surface)
+    if (!cache.shown) return next(e)
     if (!cache.initialized) await refresh($, cache)
 
     const status = cache.readable ? cache.lastGood : null
     const cells = status === 'afk' ? '■□' : status === 'available' ? '□■' : '□□'
     // Capture explicit intent from this drawing; never toggle a later disk value.
     const intended: Status | null = status === 'available' || status === 'missing' ? 'afk' : status === 'afk' ? 'available' : null
-    const indicator = status === 'afk' ? kindOf(cache.context) ?? cache.idle : null
+    const kind = status === 'afk' ? kindOf(cache.context) : null
+    // Only idle labels blink: on the off beat the emoji gives way to two spaces, so the words stay put.
+    const idle = cache.idle && cache.blinkOff ? cache.idle.replace(/^\S+/, '  ') : cache.idle
+    // Not while a press is pending or has just failed: that row already has its own text.
+    const indicator = status === 'afk' && !cache.pending && !cache.failed ? kind ?? idle : null
     const { Box, Text, Button } = $.ui.resolve(e)
     const original = await next(e)
 

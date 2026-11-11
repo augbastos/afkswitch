@@ -188,8 +188,10 @@ for host, path, variable in (("claude", "hooks/hooks.json", "CLAUDE_PLUGIN_ROOT"
     elif "modules" in manifest:
         fail("experimental Codex hooks must not load the Claude UI module")
     hooks = manifest.get("hooks", {})
-    if set(hooks) != {"SessionStart", "UserPromptSubmit"}:
-        fail(f"{path} must declare exactly the two lifecycle hooks")
+    # Claude Code also gets the hook that declines approval prompts while the human is away.
+    wanted = {"SessionStart", "UserPromptSubmit"} | ({"PermissionRequest"} if host == "claude" else set())
+    if set(hooks) != wanted:
+        fail(f"{path} must declare exactly these hooks: {sorted(wanted)}")
     for event, entries in hooks.items():
         expected = {"type": "command", "command": f'python3 "${{{variable}}}/scripts/presence_hook.py" --host {host} --event {event}', "timeout": 5}
         if entries != [{"hooks": [expected]}]:

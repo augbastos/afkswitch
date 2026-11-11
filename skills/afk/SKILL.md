@@ -143,4 +143,4 @@ a reset marker starts a new epoch. With no state, retain known presence; only `/
 ends AFK. Do not claim lifecycle sync when the adapter does not implement it.
 
 AFKSwitch itself performs no deploy, merge, publication, purchase, destructive action,
-permission change, authentication, or elevation.
+authentication, elevation or permission grant.

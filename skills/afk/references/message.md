@@ -49,6 +49,12 @@ Do not start anything that can predictably raise an interactive prompt, and do n
 command just to find out whether it prompts: by then the prompt is open on an unattended
 machine. A reasonable chance is enough to defer.
 
+The same goes for the host's own approval prompts. A tool call that would open a
+permission or authorization prompt (a push, a command outside what is already allowed)
+stops this whole session until someone answers it, and nobody is at the machine. Do not
+make that call. Defer that one step, record it, and carry on with everything else. Stop
+only when every remaining step needs the human; until then, keep going as far as you can.
+
 Record each deferred step in one line:
 BLOCKED FOR HUMAN (<remote|physical>): <task> — stopped at <point> — needs <interaction> — resume with: <next action>
 

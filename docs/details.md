@@ -40,7 +40,7 @@ A session that has not answered `/back` is *no reply yet* — never "done", "fai
 <!-- capabilities:details:start -->
 | Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
 |---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
 | Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
 | Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
 | Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
@@ -165,25 +165,37 @@ for the separate Claude plugin directory limitation.
 If your build does not load installed mods, use `claude --plugin-dir <clone>` or
 `CLAUDE_CODE_PLUGIN_DIRS`. See [compatibility](compatibility.md) for the evidence.
 
-The terminal's `AbovePrompt` band draws one compact bordered row, unchanged in size:
+The terminal's `AbovePrompt` band draws one compact bordered box, unchanged in size:
 `AFK  □■` (available, dim grey label) or `AFK  ■□` (away, orange `#F28C28` border).
 While it can be pressed, the whole inside of the border is one button.
 Click it, or focus it with `ctrl+x tab` and press Enter.
-The button label carries no context. While you are away, a dim label beside the box names
-the kind of absence when your `/afk` text has a known word. It is a plain keyword hit
-anywhere in the text; it does not understand "not", and the first row below wins:
+The button label carries no context. `AFK  □□` is neutral unknown state.
 
-| Label | Words |
+While you are away, a dim label may follow the box, outside its border. It names
+the kind of absence when your `/afk` text has a known word or phrase. It is a plain keyword
+hit, not understanding: it does not know "not", and when several kinds match, the one that
+comes first in your text wins. The lists are narrow on purpose, because a note is often about
+the agent's work ("keep working", "cron job"), not about you:
+
+| Label | Words and phrases |
 |---|---|
-| `💼 at work` | work, working, job, office, shift, trabalho, trabalhar, turno |
-| `💤 sleeping` | sleep, sleeping, nap, bed, bedtime, dormir, sono |
-| `🛒 shopping` | shop, shopping, grocery, groceries, supermarket, compras, mercado |
-| `✈️ travelling` | travel, trip, flight, airport, vacation, viagem, viajar, voo, aeroporto |
+| `💼 at work` | `work` or `working` alone; at/to/from/for/after/before/off work; night shift, shift work, meeting, office; trabalho, trabalhando, turno, reunião, escritório, expediente, emprego |
+| `💤 sleeping` | sleep, sleeping, sleepy, asleep, slept, nap, napping, bedtime, going to bed, in bed, good night; dormir, dormindo, sono, soneca, cochilo, cama, boa noite |
+| `🛒 shopping` | shop, shopping, grocery, groceries, supermarket, mall; compras, comprar, comprando, mercado, supermercado |
+| `🛫 traveling` | travel, traveling, trip to, business/road/weekend/day/work trip, flight, fly, flying, flew, airport, vacation, holiday; viagem, viajar, voo, aeroporto, férias, feriado, rodoviária |
 
-Otherwise an idle label (`🌳 at the park`, `💃 dancing`, `💬 chatting`, `☕ coffee break`,
-`🚶 out for a walk`, `🎧 listening to music`, `🍜 grabbing a bite`, `📚 reading`) appears on
-every third prompt or finished turn and is gone on the next one. Your text itself is
-never drawn, and no timer runs. Anyone who sees your screen sees the label. `AFK  □□` is neutral unknown state.
+A few look-alikes are left out: workout, post office, out of office, office hours, coffee
+shop, sleep mode, flight sim, Mercado Livre. A note with no known word gets no label.
+
+When you leave with no note at all (a click, or a bare `/afk`), an idle label appears on
+every third prompt or finished turn and is gone 8 seconds later, always the same time. Its
+emoji blinks for the first 3 seconds; kind labels never blink. The idle labels are
+`🌳 at the park`, `💃 dancing`, `💬 chatting`, `☕ coffee break`, `🚶 out for a walk`,
+`🎧 listening to music`, `🍜 grabbing a bite`, `📚 reading`, and sillier ones such as
+`🦆 arguing with a duck` or `🧦 hunting the other sock`; about one in twenty is a rare one
+such as `🛸 abducted, back soon`.
+Your text itself is never drawn. Anyone who sees your screen sees the label.
+
 One-time onboarding lines explain the switch; `saving…` marks a pending action and
 `not switched — try /afk or /back` marks a failed or unconfirmed action.
 Before first use, a definitely missing state file gives
@@ -200,7 +212,7 @@ valid fields confirm a presence state. It never writes, creates or migrates stat
 Python to draw. Onboarding uses the host's store separately. Its module-local cache
 refreshes at `session.start`, first render after load, `prompt.submit`,
 `turn.complete`, and before dispatch. A bad
-read hides cached presence rather than implying available. No timers or polling.
+read hides cached presence rather than implying available. No polling; the only timers are the two that blink and then hide an idle label, armed only while one shows.
 
 Clicking a displayed available state requests `$.command.run({ command:
 'afkswitch:afk' })`; displayed AFK requests `afkswitch:back`, without context or slash.
@@ -254,6 +266,19 @@ The experimental [Antigravity layout](../adapters/agy/README.md) describes `PreI
 returns `injectSteps[].ephemeralMessage` only for AFK; it reads no transcript and
 available state emits nothing. Its peer messaging reach between independent CLI
 sessions is unproven, so sync, notify and fanIn remain unsupported in the declared matrix.
+
+## Approval prompts while away
+
+While you are away, a third hook, `PermissionRequest`, answers "not now" to Claude Code's own
+approval prompts: the call is declined with a note telling the session to defer that step and
+keep working, instead of the session waiting all night for a click. It never approves anything,
+reads only the state file, and does nothing when you are present or the state is unknown.
+Set `AFKSWITCH_KEEP_PROMPTS` to `1`, `true` or `yes` to keep the prompts, for example if you
+approve them remotely. The command that `/afk` and `/back` run is never declined, so you can
+always come back.
+
+The decline message asks the session not to retry and not to look for another way to do
+the same thing. A session in a mode that never prompts is unaffected.
 
 ## Codex sandbox
 
