@@ -297,6 +297,16 @@ On Windows, Codex runs `workspace-write` only when its Windows sandbox is config
 (`[windows] sandbox = "unelevated"` or `"elevated"`); otherwise the session is read-only and
 `$afkswitch:afk` reports that the state was not saved.
 
+## Three rules
+
+1. **One writer: the helper.** Only the bundled helper saves presence. The switch and
+   sync hooks read it; peers are notified only after a successful save and read-back.
+2. **Explicit actions only.** Only `/back` ends AFK, including through the switch.
+   Time passing, a remote reply, or a session restart never means you returned.
+3. **Presence is not permission.** Away never authorizes anything. In Claude Code, an
+   approval prompt that opens while you are away is declined instead of left waiting
+   (`AFKSWITCH_KEEP_PROMPTS=1` keeps the prompts; `/back` itself is never declined). Away does not mean unreachable. Only the step that needs you waits; independent authorized work continues.
+
 ## What AFKSwitch is not
 
 Not an orchestration framework, fleet manager, scheduler, messaging server, permission
