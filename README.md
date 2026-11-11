@@ -95,6 +95,19 @@ questions, recommended option first, then resumes asking in real time.
 Click the terminal switch to run the same skills without context. Each invocation
 starts a model turn; the host's permissions and costs still apply.
 
+### What the switch runs by itself
+
+The switch is a Claude Code mod (`hooks/switch.tsx`). It does these things and nothing else:
+
+- **One slash command per click.** A click runs `/afkswitch:afk` when you are present, or
+  `/afkswitch:back` when you are away, once. It never runs a command without a click.
+- **It listens to `command.run`** only to notice when that command of its own starts. It
+  passes every event on unchanged and does not see or change other commands.
+- **It reads `HOME` or `USERPROFILE`** only to find `~/.afkswitch/state.json`
+  (`AFKSWITCH_STATE_DIR` overrides the folder). These are folder paths, not credentials,
+  and the mod sends nothing anywhere.
+- **Two short timers** blink and then hide the idle label; nothing polls.
+
 ## Three rules
 
 1. **One writer: the helper.** Only the bundled helper saves presence. The switch and
