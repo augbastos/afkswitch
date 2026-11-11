@@ -53,7 +53,10 @@ The optional Claude Code terminal visual switch reads presence from the local st
 the function-hooks filesystem API (`AFKSWITCH_STATE_DIR` overrides the home location).
 At session start it also reads the host store's `onboardingVersion` marker and writes
 `1` when no numeric value of at least `1` is present, to show onboarding once.
-It uses version and status for a session-local drawing cache, never displays your
+It uses version, status and, while you are away, a keyword match on your context that
+picks one fixed label (sleeping, at work, shopping, travelling) drawn beside the switch.
+That label is visible to anyone who sees your screen. It keeps these in a session-local
+drawing cache and never displays your
 context, and never writes or migrates state, reads transcripts, starts Python during
 render, polls or makes network requests. A click runs the same `afkswitch:afk` or
 `afkswitch:back` skill with no context; it starts a model turn with the existing helper,

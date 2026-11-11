@@ -18,6 +18,7 @@ All notable changes to this project are documented here. Format follows
 
 - Presence notes print the context as one quoted JSON string (`context: "sleep"`), so context text cannot pose as part of the note.
 - The switch is also drawn in the Claude Code desktop app.
+- While you are away, a small label beside the switch names the kind of absence found in your `/afk` text (sleeping, at work, shopping, travelling), or now and then shows an idle one. No timer; the text itself is never drawn.
 - CI runs the switch module tests on Linux, Windows and macOS.
 - The plugin archive no longer carries the README pictures.
 - Queue human decisions while AFK without stalling independent authorized work; review them together on return and include their count in status replies.

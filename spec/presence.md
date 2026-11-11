@@ -22,7 +22,11 @@ The Claude Code terminal switch is another explicit input to the same `/afk` and
 `/back` actions, never a second source of truth. It draws one bordered compact row:
 `AFK  □■` for available (dim grey label), `AFK  ■□` for AFK (orange `#F28C28` label),
 and neutral `AFK  □□` before first use or for unknown state. The geometry is the same in both known states;
-there is no context, animation, slider or track. A pending action adds dim `saving…`;
+there is no animation, slider or track, and the context text is never drawn. While AFK, a short
+dim label may sit beside the box. It names a kind of absence found in the context by
+keyword (sleeping, at work, shopping, travelling). With no known kind, one of a few idle
+labels shows on every third prompt or finished turn and is gone on the next. The label
+changes only on those events; no timer runs. It is decoration, never state. A pending action adds dim `saving…`;
 a failed action adds orange `not switched — try /afk or /back`.
 
 Only a read of version 1 or 2 with status `afk` or `available` confirms the drawing.

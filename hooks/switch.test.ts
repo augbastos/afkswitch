@@ -410,3 +410,100 @@ for (const raw of ['not json', '[]', 'null', '{"version":2,"status":"available"}
     expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
   })
 }
+
+const away = (context: string | null) => JSON.stringify({
+  version: 2, status: 'afk', since: '2026-09-30T12:00:00Z', context, generation: 1,
+})
+const IDLE_LABELS = [
+  '🌳 at the park', '💃 dancing', '💬 chatting', '☕ coffee break',
+  '🚶 out for a walk', '🎧 listening to music', '🍜 grabbing a bite', '📚 reading',
+]
+const INDICATOR = /^ \p{Extended_Pictographic}/u
+const submit = ($: Engine) => $.prompt.submit({ text: 'unchanged', wait: false, origin: { kind: 'composer' } })
+
+for (const [context, label] of [
+  ['sleep', '💤 sleeping'], ['vou dormir, volto 8h', '💤 sleeping'],
+  ['work', '💼 at work'], ['indo pro trabalho', '💼 at work'],
+  ['shopping for groceries', '🛒 shopping'], ['compras no mercado', '🛒 shopping'],
+  ['trip to Dublin', '✈️ travelling'], ['viagem até domingo', '✈️ travelling'],
+] as const) {
+  test(`indicator: "${context}" shows ${label}`, async ($, on) => {
+    setup(on, away(context))
+    const ui = await mount($)
+    expect((await ui.find({ type: 'Text', text: INDICATOR }))?.props).toMatchObject({ dimColor: true })
+    expect(await ui.find({ type: 'Text', text: ` ${label}` })).toBeDefined()
+    // The label names a kind only; the context text itself is never drawn.
+    const texts = (await ui.findAll({ type: 'Text' })).map(node => String(node.children?.[0]))
+    expect(texts.filter(text => text.trim() === context)).toHaveLength(0)
+    await submit($)
+    expect(await ui.find({ type: 'Text', text: ` ${label}` })).toBeDefined()
+  })
+}
+
+for (const [context, label] of [
+  ['night shift', '💼 at work'], ['napping', '💤 sleeping'], ['bedtime', '💤 sleeping'],
+  ['two flights today', '✈️ travelling'], ['grocery run', '🛒 shopping'],
+] as const) {
+  test(`indicator: "${context}" shows ${label}`, async ($, on) => {
+    setup(on, away(context))
+    const ui = await mount($)
+    expect(await ui.find({ type: 'Text', text: ` ${label}` })).toBeDefined()
+  })
+}
+
+for (const context of ['workout', 'store the file', 'trip wire', 'network down', 'nightly build', 'homework']) {
+  test(`indicator: "${context}" is not a known kind`, async ($, on) => {
+    setup(on, away(context))
+    const ui = await mount($)
+    expect(await ui.find({ type: 'Text', text: INDICATOR })).toBeUndefined()
+  })
+}
+
+test('indicator follows the context when it changes while away', async ($, on) => {
+  const disk = setup(on, away('sleep'))
+  const ui = await mount($)
+  expect(await ui.find({ type: 'Text', text: ' 💤 sleeping' })).toBeDefined()
+  disk.raw = away('work')
+  await submit($)
+  expect(await ui.find({ type: 'Text', text: ' 💼 at work' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: ' 💤 sleeping' })).toBeUndefined()
+  disk.raw = away(null)
+  await submit($)
+  expect(await ui.find({ type: 'Text', text: INDICATOR })).toBeUndefined()
+  disk.raw = 'not json'
+  await submit($)
+  expect(await ui.find({ type: 'Text', text: INDICATOR })).toBeUndefined()
+})
+
+for (const context of [null, 'walking the dog']) {
+  test(`indicator: no known kind (${context}) shows an idle label only on every third event`, async ($, on) => {
+    setup(on, away(context))
+    const ui = await mount($)
+    const shown = async () => (await ui.find({ type: 'Text', text: INDICATOR }))?.children?.[0] as string | undefined
+    expect(await shown()).toBeUndefined()
+    await submit($)
+    expect(await shown()).toBeUndefined()
+    await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 'one', reason: 'answer' })
+    expect(await shown()).toBeUndefined()
+    await submit($)
+    const label = await shown()
+    expect(IDLE_LABELS.map(l => ` ${l}`)).toContain(label)
+    await submit($)
+    expect(await shown()).toBeUndefined()
+  })
+}
+
+test('indicator: nothing is shown while present, and it resets on return', async ($, on) => {
+  const disk = setup(on, state('available'))
+  const ui = await mount($)
+  for (let i = 0; i < 6; i += 1) {
+    await submit($)
+    expect(await ui.find({ type: 'Text', text: INDICATOR })).toBeUndefined()
+  }
+  disk.raw = away('sleep')
+  await submit($)
+  expect(await ui.find({ type: 'Text', text: ' 💤 sleeping' })).toBeDefined()
+  disk.raw = state('available')
+  await submit($)
+  expect(await ui.find({ type: 'Text', text: INDICATOR })).toBeUndefined()
+})

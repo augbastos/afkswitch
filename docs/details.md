@@ -169,7 +169,21 @@ The terminal's `AbovePrompt` band draws one compact bordered row, unchanged in s
 `AFK  □■` (available, dim grey label) or `AFK  ■□` (away, orange `#F28C28` border).
 While it can be pressed, the whole inside of the border is one button.
 Click it, or focus it with `ctrl+x tab` and press Enter.
-The button label carries no context. `AFK  □□` is neutral unknown state.
+The button label carries no context. While you are away, a dim label beside the box names
+the kind of absence when your `/afk` text has a known word. It is a plain keyword hit
+anywhere in the text; it does not understand "not", and the first row below wins:
+
+| Label | Words |
+|---|---|
+| `💼 at work` | work, working, job, office, shift, trabalho, trabalhar, turno |
+| `💤 sleeping` | sleep, sleeping, nap, bed, bedtime, dormir, sono |
+| `🛒 shopping` | shop, shopping, grocery, groceries, supermarket, compras, mercado |
+| `✈️ travelling` | travel, trip, flight, airport, vacation, viagem, viajar, voo, aeroporto |
+
+Otherwise an idle label (`🌳 at the park`, `💃 dancing`, `💬 chatting`, `☕ coffee break`,
+`🚶 out for a walk`, `🎧 listening to music`, `🍜 grabbing a bite`, `📚 reading`) appears on
+every third prompt or finished turn and is gone on the next one. Your text itself is
+never drawn, and no timer runs. Anyone who sees your screen sees the label. `AFK  □□` is neutral unknown state.
 One-time onboarding lines explain the switch; `saving…` marks a pending action and
 `not switched — try /afk or /back` marks a failed or unconfirmed action.
 Before first use, a definitely missing state file gives

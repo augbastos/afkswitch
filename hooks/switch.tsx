@@ -15,6 +15,39 @@ type Cache = {
   started: boolean
   failed: boolean
   revision: number
+  context: string | null
+  ticks: number
+  idle: string | null
+}
+
+// A short label beside the switch while away. It names a kind of absence found in the
+// AFK context by keyword; the context text itself is never drawn.
+const KINDS: [RegExp, string][] = [
+  // Plain keyword hits anywhere in the text; the first row that matches wins.
+  [/\b(work(?!out|ing out)\w*|jobs?|office|shifts?|trabalh\w*|turno)\b/i, '💼 at work'],
+  [/\b(sleep\w*|nap\w*|bed(time)?|dormi\w*|sono)\b/i, '💤 sleeping'],
+  [/\b(shop\w*|grocer(y|ies)|supermarket|compras?|mercado)\b/i, '🛒 shopping'],
+  [/\b(travel\w*|trips?(?! ?wire)|flights?|airport|vacation|viag\w*|viaj\w*|voo|aeroporto)\b/i, '✈️ travelling'],
+]
+// With no known kind, one of these shows now and then: on every third prompt or finished
+// turn, and only then. No timer runs.
+const IDLE = [
+  '🌳 at the park', '💃 dancing', '💬 chatting', '☕ coffee break',
+  '🚶 out for a walk', '🎧 listening to music', '🍜 grabbing a bite', '📚 reading',
+]
+const IDLE_EVERY = 3
+
+const kindOf = (context: string | null): string | null =>
+  context === null ? null : KINDS.find(([words]) => words.test(context))?.[1] ?? null
+
+function tick(cache: Cache): void {
+  if (!cache.readable || cache.lastGood !== 'afk') {
+    cache.ticks = 0
+    cache.idle = null
+    return
+  }
+  cache.ticks += 1
+  cache.idle = cache.ticks % IDLE_EVERY === 0 ? IDLE[Math.floor(Math.random() * IDLE.length)] : null
 }
 
 // Mirror parse_since/context_problem/problems_v1/problems_v2 in the state helper.
@@ -35,7 +68,8 @@ const validContext = (value: unknown): boolean => value === null ||
   (typeof value === 'string' && [...value].length <= 2048 &&
     !/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\ud800-\udfff]/u.test(value))
 
-async function readStatus($: EngineInterface): Promise<ReadStatus> {
+async function readStatus($: EngineInterface, out: { context: string | null }): Promise<ReadStatus> {
+  out.context = null
   try {
     const override = await $.env.get('AFKSWITCH_STATE_DIR')
     // Mirror Python's Path.home(), which the helper uses: on Windows it reads USERPROFILE and ignores HOME.
@@ -61,6 +95,7 @@ async function readStatus($: EngineInterface): Promise<ReadStatus> {
     if (state.version === 2 &&
       (typeof state.generation !== 'number' || !Number.isInteger(state.generation) || state.generation < 1 ||
         (state.status === 'available' && state.context !== null))) return null
+    if (state.status === 'afk') out.context = state.context as string | null
     return state.status
   } catch {
     // Unreadable, malformed and future state are unknown, never present.
@@ -71,8 +106,10 @@ async function readStatus($: EngineInterface): Promise<ReadStatus> {
 async function refresh($: EngineInterface, cache: Cache): Promise<ReadStatus> {
   const request = ++cache.revision
   try {
-    const status = await readStatus($)
+    const read = { context: null as string | null }
+    const status = await readStatus($, read)
     if (request === cache.revision) {
+      cache.context = read.context
       cache.initialized = true
       cache.readable = status !== null
       if (status !== null) cache.lastGood = status
@@ -99,6 +136,7 @@ export const register: Register = on => {
   const cache: Cache = {
     initialized: false, lastGood: null, readable: false,
     pending: false, awaiting: null, started: false, failed: false, revision: 0,
+    context: null, ticks: 0, idle: null,
   }
 
   on('session.start', async ($, e, next) => {
@@ -121,6 +159,7 @@ export const register: Register = on => {
     showOnboarding = false
     $.ui.invalidate('ui.render')
     await refresh($, cache)
+    tick(cache)
     $.ui.invalidate('ui.render')
     return next(e)
   })
@@ -141,6 +180,7 @@ export const register: Register = on => {
         cache.failed = true
       }
     } else cache.failed = false
+    tick(cache)
     $.ui.invalidate('ui.render')
     return next(e)
   })
@@ -153,6 +193,7 @@ export const register: Register = on => {
     const cells = status === 'afk' ? '■□' : status === 'available' ? '□■' : '□□'
     // Capture explicit intent from this drawing; never toggle a later disk value.
     const intended: Status | null = status === 'available' || status === 'missing' ? 'afk' : status === 'afk' ? 'available' : null
+    const indicator = status === 'afk' ? kindOf(cache.context) ?? cache.idle : null
     const { Box, Text, Button } = $.ui.resolve(e)
     const original = await next(e)
 
@@ -196,9 +237,9 @@ export const register: Register = on => {
         {/* A Box takes no clicks, so while the switch can be pressed the whole inside of
             the border is one Button (padding in its label). A Button has no color, so
             "away" shows on the border instead of the word. */}
+        <Box flexDirection="row" alignSelf="flex-start" alignItems="center">
         <Box
           flexDirection="row"
-          alignSelf="flex-start"
           borderStyle="single"
           borderColor={status === 'afk' ? '#F28C28' : undefined}
           paddingX={cache.pending || intended === null ? 1 : 0}
@@ -212,6 +253,8 @@ export const register: Register = on => {
           {cache.pending || cache.failed ? <Text>{' '}</Text> : null}
           {cache.pending ? <Text dimColor>saving…</Text> : null}
           {cache.failed ? <Text color="#F28C28">not switched — try /afk or /back</Text> : null}
+        </Box>
+        {indicator ? <Text key="afkswitch-indicator" dimColor>{` ${indicator}`}</Text> : null}
         </Box>
         {showOnboarding ? <Box flexDirection="column">
           <Text dimColor>{"AFKSwitch is ready — [ AFK □■ ] means you're here."}</Text>
