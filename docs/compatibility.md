@@ -26,9 +26,10 @@ separate evidence below.
 | Claude Code | 2.1.322 | `claude plugin test .` and `claude plugin validate --strict .`, also with an empty config folder (no login) | passed; tested on Windows |
 | Python | 3.14 | `python scripts/validate.py`; `python -m pytest conformance -q -p no:cacheprovider` | passed; tested on Windows |
 
-The switch is now also drawn in the desktop app. That drawing and the switch on macOS
-and Linux are covered by the module tests, which CI runs on all three systems; no live
-click was made there.
+The switch module now also draws in the desktop app. That drawing and the switch on macOS
+are covered only by the module tests, which passed on Windows and on Linux (arm64). The
+new CI job for Linux, Windows and macOS had not run when this was written, and no live
+click was made in the desktop app, on macOS or on Linux.
 
 ## AFKSwitch 0.6.0
 
