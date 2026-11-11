@@ -37,14 +37,21 @@ applies, and outputs should be reviewed before sharing.
 Version 0.6 replaces the earlier "no hooks" constraint with two read-only lifecycle
 hooks, SessionStart and UserPromptSubmit, because sessions started after `/afk` and
 changes from another host need current presence. `scripts/presence_hook.py` reads
-`~/.afkswitch/state.json` through the existing helper and at most the last 256 KiB of
-the session transcript to find its last AFKSwitch marker. It outputs only the universal
+`~/.afkswitch/state.json` through the existing helper and the end of the session transcript (the last 256 KiB, widening to 4 MiB and at most 64 MiB
+only while no marker is found) to find its last AFKSwitch marker. It outputs only the universal
 presence event (status, generation, AFK context and presence semantics) in host context,
 never transcript contents. Antigravity's PreInvocation variant reads no transcript and
-outputs an ephemeral AFK event only. Hooks never write state or transcripts, change
-permissions, poll, run in the background or use the network. Any error exits 0 without
+outputs an ephemeral AFK event only. These lifecycle hooks never write state or transcripts,
+change permissions, poll, run in the background or use the network. Any error exits 0 without
 output; missing, invalid and future state versions also produce nothing. No database
 or checkpoint file is created. Host transcript retention still follows host policy.
+
+In Claude Code a third read-only hook, `PermissionRequest`, reads the same state file. While
+you are away it answers "not now" to Claude Code's own approval prompts, so the call is
+declined instead of the session waiting. It can only decline, never approve. It receives the
+tool name and input from the host and stores or sends none of it. It leaves the prompt alone
+when you are present, when the state is missing or unreadable, for the `/afk` and `/back`
+helper itself, and when `AFKSWITCH_KEEP_PROMPTS` is `1`, `true` or `yes`.
 
 Agent hosts may process prompts, skills, messages, logs, or local files according to their
 own terms and privacy policies. AFKSwitch does not control host-level data handling.
@@ -53,7 +60,12 @@ The optional Claude Code terminal visual switch reads presence from the local st
 the function-hooks filesystem API (`AFKSWITCH_STATE_DIR` overrides the home location).
 At session start it also reads the host store's `onboardingVersion` marker and writes
 `1` when no numeric value of at least `1` is present, to show onboarding once.
-It uses version and status for a session-local drawing cache, never displays your
+It uses version, status and, while you are away, your AFK context: a keyword match on it
+picks one fixed label (sleeping, at work, shopping, traveling) drawn beside the switch, and
+with no context at all a random idle label (such as "at the park") may show instead. A
+label is visible to anyone who sees your screen. The switch keeps the context text in memory
+in a session-local
+drawing cache and never displays your
 context, and never writes or migrates state, reads transcripts, starts Python during
 render, polls or makes network requests. A click runs the same `afkswitch:afk` or
 `afkswitch:back` skill with no context; it starts a model turn with the existing helper,

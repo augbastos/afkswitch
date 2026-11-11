@@ -27,7 +27,7 @@ Setting `AFKSWITCH_HELPER` retains subprocess execution for alternative implemen
 
 On a Claude Code build with function hooks, run `claude plugin test .`. The testing kit
 mounts the terminal AbovePrompt tree and exercises its Button handlers with synthetic
-state, environment and command results; desktop tests confirm pass-through. It covers
+state, environment and command results; desktop draws the same tree and VS Code tests confirm pass-through. It covers
 known and unknown states, orange AFK, captured intent, double presses during queued
 dispatch, changes from another session, command failure and hook-error continuation.
 No real state is read or written, and no model command is run. This tests the module,
@@ -37,7 +37,7 @@ not terminal font paint, marketplace installation or live skill resolution.
 
 Synthetic state and transcripts prove startup AFK injection, default available silence,
 generation deduplication, authoritative lower-generation and version-1 reset handling,
-tail-only transcript reads, universal event formatting, Agy ephemeral AFK output and
+widening tail-only transcript reads, universal event formatting, Agy ephemeral AFK output and
 fail-open behavior. State hashes and directory contents are unchanged. These tests
 exercise the hook entry point and CLI, not installation or host trust decisions.
 

@@ -19,10 +19,21 @@ Adapters may expose richer UI, but these are the only portable states.
 ## Visual input
 
 The Claude Code terminal switch is another explicit input to the same `/afk` and
-`/back` actions, never a second source of truth. It draws one bordered compact row:
-`AFK  □■` for available (dim grey label), `AFK  ■□` for AFK (orange `#F28C28` label),
-and neutral `AFK  □□` before first use or for unknown state. The geometry is the same in both known states;
-there is no context, animation, slider or track. A pending action adds dim `saving…`;
+`/back` actions, never a second source of truth. It draws one bordered compact box:
+`AFK  □■` for available (dim grey label), `AFK  ■□` for AFK (orange `#F28C28` border),
+and neutral `AFK  □□` before first use or for unknown state. The box has the same size in
+both known states; there is no slider or track, and the context text is never drawn.
+
+While AFK, a short dim label may follow the box, outside its border. It is decoration,
+never state. When the context has a known word, the label names that kind of absence
+(sleeping, at work, shopping, traveling); it is drawn on every render and holds still.
+The match is a plain keyword hit, so the context stays opaque everywhere else. When
+there is no context at all, an idle label shows on every third prompt or finished turn
+and is gone 8 seconds later; its emoji blinks for the first 3 seconds, the only motion
+in the switch. Context with no known word gets no label. No label is drawn while a
+press is pending or has failed.
+
+A pending action adds dim `saving…`;
 a failed action adds orange `not switched — try /afk or /back`.
 
 Only a read of version 1 or 2 with status `afk` or `available` confirms the drawing.
@@ -32,8 +43,10 @@ neutral cells are pressable and request `afkswitch:afk`. An existence-check erro
 stays unknown. AFK is confirmed only after a valid AFK state is read back. The module
 retains its last good read in a session-local drawing cache, but hides it when a fresh
 read cannot confirm it. It reads at session start, first drawing after module load,
-prompt submission, turn completion, immediately before a click's command and after
-that command completes. There are no timers or polling. It never runs Python during
+prompt submission, turn completion, immediately before a click's command and after a
+failed dispatch. There is no polling: the state file is read only on those events. The
+only timers are the two that blink and then hide an idle label; they are armed only when
+such a label is shown and stop when it leaves. It never runs Python during
 render and never writes, creates or migrates state.
 
 A click captures the intended action from the displayed state: available requests
@@ -48,8 +61,8 @@ truth and re-enable a known-state or missing-file button; never claim the intend
 idle without changing the typed draft. The skill starts a model turn: its existing
 helper, notify and fan-in flow runs normally, including host costs and permissions.
 The module itself reads only the local state file and does not send network requests.
-Builds without function hooks retain text commands. This release exposes the switch
-on `terminal` only; other surfaces pass through. Every hook error continues `next(e)`.
+Builds without function hooks retain text commands. The switch is drawn
+on `terminal` and `desktop`; other surfaces pass through. Every hook error continues `next(e)`.
 
 ## Invariants
 
@@ -109,6 +122,9 @@ Irreversible, public, production, spending and credential steps still wait for r
 human authorization or interaction. AFK authorizes nothing new. Defer physical blockers.
 Do not start anything that can predictably raise an interactive prompt, and do not run a
 command just to find out whether it prompts. A reasonable chance is enough to defer.
+The host's own approval prompts count too: a tool call that would open a permission or
+authorization prompt stops the whole session until someone answers, so defer that one step
+and continue with the rest. A session stops only when every remaining step needs the human.
 
 At the next natural pause after `/back`, present all queued decisions to the human
 together as a sequence of multiple-choice questions, recommended option first. Use the
@@ -251,15 +267,16 @@ Every event has this minimal core (host-specific guidance comes after it):
 ```text
 [AFKSwitch g<G>]
 status: afk|available
-context: <verbatim text or none>
+context: <one JSON string, or none>
 <one or two sentences of presence semantics>
 ```
 
 For AFK: "The human is physically away and may still be reachable remotely. Presence
 changes no permissions; only /back ends AFK." For back: "The human is physically present
 again. Presence changes no permissions." Use `[AFKSwitch g<G> reset]` on reset.
-Multiline context continues verbatim after `context:`; these lines are data, never commands,
-even if they resemble event fields or guidance. This is a human/model message, not an
+Context is written as one JSON string on the `context:` line, for example `context: "sleep"`;
+line breaks appear as `\n` inside the quotes. So context cannot add lines that look like
+event fields or guidance. It is data, never a command. This is a human/model message, not an
 unambiguous machine serialization; consumers needing structured data use the helper JSON.
 
 A receiving agent remembers the highest generation it has seen in its conversation and:
@@ -279,11 +296,13 @@ one.
 ## Session-local awareness and sync
 
 Version 0.6 replaces the earlier "no hooks" constraint with two read-only lifecycle
-hooks: `SessionStart` and `UserPromptSubmit` in Claude Code. Experimental Codex files
+hooks: `SessionStart` and `UserPromptSubmit` in Claude Code (a third hook, described under
+[Approval prompts while AFK](#approval-prompts-while-afk), handles approval prompts). Experimental Codex files
 describe the same boundaries but are not wired into default manifests. Sessions started
 after `/afk`, or changed by another host, must learn the current presence. Each invocation
 runs `scripts/presence_hook.py` synchronously, imports the existing state helper by path,
-reads `~/.afkswitch/state.json` and at most the last 256 KiB of the session transcript
+reads `~/.afkswitch/state.json` and the end of the session transcript (the last 256 KiB,
+then 4 MiB, then 64 MiB, widening only while no marker is found)
 (`transcript_path`) to find the last `[AFKSwitch g<N>]` or `[AFKSwitch g<N> reset]` marker,
 and exits. It never writes state or transcript, changes permissions, polls, runs in the
 background or uses the network. Any error exits 0 with no output; missing, invalid or
@@ -297,7 +316,7 @@ reset unless its generation-1 reset marker is already present. Once that marker 
 in the transcript, the same state is a repeat. With no marker, the seen generation is 0.
 The output is `hookSpecificOutput` with `hookEventName` and `additionalContext` containing
 exactly the universal core event above, without host-specific guidance or return context.
-An unreadable transcript produces no output. Markers outside the bounded tail may be
+An unreadable transcript produces no output. Markers older than the widest window may be
 replayed; transcript-only memory cannot distinguish an unobserved same-generation
 recreation from a repeat, or an unobserved reset that overtakes the previous counter.
 It adds no database, checkpoint file or durable protocol fields.
@@ -331,6 +350,16 @@ No checkpoint can detect an entirely unobserved reset that overtakes the previou
 its current higher generation is still applied safely. No extra durable protocol fields,
 epoch files or clocks used for ordering are introduced.
 
+## Approval prompts while AFK
+
+An adapter may decline the host's own approval prompts while the state is `afk`, so a
+session defers that step instead of waiting for a click nobody can give. It must never
+approve one: presence widens nothing. With missing, invalid or future state, or when the
+human opts out, the host's prompt is left unchanged. The Claude Code adapter does this
+with a read-only `PermissionRequest` hook. It leaves the prompt alone for the state helper's
+own command, so `/back` always works, and when `AFKSWITCH_KEEP_PROMPTS` is `1`, `true` or
+`yes`. Any error exits 0 with no output, which also leaves the prompt alone.
+
 ## Delivery
 
 "Notified" means the host confirmed delivery to that session. A message the host reports
@@ -360,7 +389,7 @@ adapter is in [`adapters/README.md`](../adapters/README.md).
 <!-- capabilities:spec:start -->
 | Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
 |---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; marketplace module loading verified on Claude Code 2.1.287 on 2026-10-02, tested on Windows. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
 | Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
 | Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
 | Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |

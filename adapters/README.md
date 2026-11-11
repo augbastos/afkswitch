@@ -27,7 +27,7 @@ watcher, telemetry or accounts. Say plainly that other sessions were not told.
 <!-- capabilities:adapters:start -->
 | Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
 |---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; marketplace module loading verified on Claude Code 2.1.287 on 2026-10-02, tested on Windows. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
 | Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
 | Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
 | Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
@@ -51,7 +51,7 @@ default manifest; live-host execution remains unverified. Claude's file also nam
 UI only reads state and invokes the existing explicit skills; it has no second writer.
 
 These two lifecycle events read `~/.afkswitch/state.json` through the helper and only
-the final 256 KiB of `transcript_path` to find the last AFKSwitch marker. Startup/clear
+the end of `transcript_path` (256 KiB, widening to 4 MiB and 64 MiB) to find the last AFKSwitch marker. Startup/clear
 injects only AFK; resume/compact/fork and prompt submission inject newer generations or
 unseen resets as `hookSpecificOutput.additionalContext`, exactly the universal event.
 They never write, poll, run in the background, change permissions or use the network;
@@ -93,14 +93,14 @@ Use the [core event](../spec/presence.md#peer-messages-and-generations):
 ```text
 [AFKSwitch g<G>]
 status: afk|available
-context: <verbatim text or none>
+context: <one JSON string, or none>
 <one or two presence semantics sentences>
 ```
 
 For AFK, say physically away, may still be reachable remotely, presence changes no
 permissions. For back, say physically present again and presence changes no permissions.
 Use g<G> reset when the helper reports reset. Put host-specific blocker classification and
-status requests after this core. Multiline context remains opaque data even when it looks
+status requests after this core. Context is one quoted JSON string, so it cannot add lines that look
 like fields or guidance; use helper JSON for structured consumption.
 
 Apply the [decision queue guidance](../spec/presence.md#decision-queue-guidance) on every

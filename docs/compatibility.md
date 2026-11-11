@@ -19,6 +19,18 @@ installed mods, use the [local clone](../README.md#local-clone).
 Module loading alone does not establish click or notification behavior; those have
 separate evidence below.
 
+## AFKSwitch 0.7.0
+
+| Host | Version | What was run | Result |
+|---|---|---|---|
+| Claude Code | 2.1.322 | `claude plugin test .` and `claude plugin validate --strict .`, also with an empty config folder (no login) | passed; tested on Windows |
+| Python | 3.14 | `python scripts/validate.py`; `python -m pytest conformance -q -p no:cacheprovider` | passed; tested on Windows |
+
+The switch module now also draws in the desktop app. That drawing and the switch on macOS
+are covered only by the module tests, which passed on Windows and on Linux (arm64). The
+new CI job for Linux, Windows and macOS had not run when this was written, and no live
+click was made in the desktop app, on macOS or on Linux.
+
 ## AFKSwitch 0.6.0
 
 | Host | Version | What was run | Result |
@@ -31,7 +43,7 @@ separate evidence below.
 | Claude Code | 2.1.287 | Earlier run: same plugin installed from a local marketplace | skills and command hooks loaded; module did not load in that run; superseded by the 2026-10-02 verification above |
 
 The hook tests prove script behavior, not host installation or model compliance.
-UI tests exercise terminal descriptions, colors and handlers, plus desktop pass-through,
+UI tests exercise terminal descriptions, colors and handlers, the desktop tree and VS Code pass-through,
 not font glyph alignment or native paint. They intercept `command.run`, so they confirm
 the requested names `afkswitch:afk` / `afkswitch:back` and model-independent behavior,
 not actual skill resolution. The live rows above cover that: a person's click resolved

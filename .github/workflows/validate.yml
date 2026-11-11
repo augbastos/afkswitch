@@ -40,8 +40,28 @@ jobs:
           python -m zipfile -l "$zip_path"
       - name: Conformance (state incl. concurrency and migration fixtures, schema agreement, checker)
         run: python -m pytest conformance -q -p no:cacheprovider
-      - name: Reference checker on the example transcripts
-        run: python conformance/checker.py conformance/notify/scenarios.json conformance/fan-in/scenarios.json
+
+  mod-tests:
+    name: mod tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install -g @anthropic-ai/claude-code && claude --version
+      - name: Switch module tests and strict plugin validation (no login needed)
+        run: |
+          claude plugin test .
+          claude plugin validate --strict .
 
   windows-installer-smoke:
     runs-on: windows-latest
@@ -51,6 +71,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Refuse a folder that is not an AFKSwitch skill
+        shell: pwsh
+        run: |
+          $foreign = Join-Path $HOME '.claude/skills/afk'
+          New-Item -ItemType Directory -Force -Path $foreign | Out-Null
+          Set-Content (Join-Path $foreign 'SKILL.md') 'another skill'
+          $refused = $false
+          try { ./install.ps1 } catch { $refused = $true }
+          if (-not $refused) { throw 'installer overwrote a foreign skill' }
+          ./install.ps1 -Uninstall
+          if ((Get-Content (Join-Path $foreign 'SKILL.md') -Raw).Trim() -ne 'another skill') { throw 'foreign skill changed or deleted' }
+          Remove-Item $foreign -Recurse -Force
       - name: Install personal skills
         shell: pwsh
         run: ./install.ps1

@@ -26,8 +26,9 @@ For Claude Code:
 /reload-plugins
 ```
 
-Needs `python3` (Python 3.9+) on `PATH`; the terminal switch needs Claude Code
-function hooks. AFKSwitch is a Claude Code Mod, live-tested on **2.1.287 on Windows**.
+Needs `python3` (Python 3.9+) on `PATH`; the switch needs Claude Code function hooks.
+On Windows, check that `python3 --version` answers: the Python install manager from
+python.org provides `python3`, the older classic installer provides only `python`. AFKSwitch is a Claude Code Mod, live-tested on **2.1.287 on Windows**.
 The [compatibility record](docs/compatibility.md) distinguishes local-marketplace
 module loading from live clicks and peer notification.
 
@@ -64,7 +65,7 @@ Capabilities from [the adapter matrix](adapters/capabilities.json):
 
 | Host | State | Sync | Notify peers | Collect return status | Visual switch |
 |---|---|---|---|---|---|
-| Claude Code | yes | yes | yes | yes | terminal, with modules |
+| Claude Code | yes | yes | yes | yes | terminal and desktop app, with modules |
 | Codex | yes | no | no | no | no |
 | Antigravity CLI | yes | no | no | no | no |
 | Generic local agent | yes | before each turn, if the host calls the helper | no | no | no |
@@ -100,8 +101,9 @@ starts a model turn; the host's permissions and costs still apply.
    sync hooks read it; peers are notified only after a successful save and read-back.
 2. **Explicit actions only.** Only `/back` ends AFK, including through the switch.
    Time passing, a remote reply, or a session restart never means you returned.
-3. **Presence is not permission.** Away does not mean unreachable or authorize new
-   actions. Only the step that needs you waits; independent authorized work continues.
+3. **Presence is not permission.** Away never authorizes anything. In Claude Code, an
+   approval prompt that opens while you are away is declined instead of left waiting
+   (`AFKSWITCH_KEEP_PROMPTS=1` keeps the prompts; `/back` itself is never declined). Away does not mean unreachable. Only the step that needs you waits; independent authorized work continues.
 
 ## What AFKSwitch reads, writes, and sends
 
@@ -116,7 +118,10 @@ AFKSwitch runs no server and makes no network requests of its own. Messages betw
 sessions travel through the host's own mechanisms and are governed by the host.
 
 Read-only sync hooks inspect state and a bounded session transcript tail, then exit.
-The switch reads presence from state. There is no daemon, polling, account, or telemetry.
+A third read-only hook declines Claude Code's approval prompts while you are away.
+The switch reads presence from state. While you are away it also matches your context
+against a short word list to draw a label such as `💤 sleeping` beside it; the text itself
+is never drawn. There is no daemon, polling, account, or telemetry.
 Claude Code peer messages can include your optional context; host data handling applies.
 
 Read the [Privacy policy](PRIVACY.md) and [Security policy](SECURITY.md).

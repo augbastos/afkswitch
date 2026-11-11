@@ -4,10 +4,25 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-11-11
+
+### Fixed
+
+- The presence note is no longer repeated on almost every prompt in a busy session: the sync hook widens its transcript window (256 KiB, 4 MiB, 64 MiB) until it finds the last note.
+- A leftover lock file that cannot be removed no longer makes `/afk` and `/back` spin forever; they give up after 15 seconds with `state is busy`.
+- On Windows the switch reads the same home folder as the state helper when `HOME` and `USERPROFILE` differ.
+- `install.ps1` refuses to overwrite or delete an `afk` or `back` folder that is not an AFKSwitch skill.
+- The one-time onboarding is spent only where it is shown.
 
 ### Changed
 
+- While you are away, sessions are told not to make a call that would open the host's own approval prompt: they defer that one step and keep going, and stop only when everything left needs you.
+- In Claude Code, an approval prompt that opens while you are away is declined instead of left waiting, with a note to defer that step and keep working. It never approves anything. `AFKSWITCH_KEEP_PROMPTS=1` keeps the prompts.
+- Presence notes print the context as one quoted JSON string (`context: "sleep"`), so context text cannot pose as part of the note.
+- The switch module now also draws in the Claude Code desktop app (covered by module tests; not yet checked by eye there).
+- While you are away, a small label beside the switch names the kind of absence found in your `/afk` text (sleeping, at work, shopping, traveling). With no text at all, an idle label shows now and then for 8 seconds, its emoji blinking for the first 3. The text itself is never drawn.
+- A CI job is added to run the switch module tests on Linux, Windows and macOS.
+- The plugin archive no longer carries the README pictures.
 - Queue human decisions while AFK without stalling independent authorized work; review them together on return and include their count in status replies.
 
 ## [0.6.8] - 2026-10-19

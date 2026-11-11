@@ -20,11 +20,15 @@ which reads and writes the `~/.afkswitch` folder and exits. Version 0.6 replaces
 earlier "no hooks" constraint with two read-only lifecycle hooks, `SessionStart` and
 `UserPromptSubmit`, so sessions opened after `/afk` and changes from other hosts are
 reconciled. They run `scripts/presence_hook.py`, read `~/.afkswitch/state.json` through
-that helper and at most the last 256 KiB of the session transcript for the last AFKSwitch
+that helper and the end of the session transcript (the last 256 KiB, widening to 4 MiB and at most 64 MiB only while no marker is found) for the last AFKSwitch
 marker, and output the universal presence event as host context only when needed.
 Antigravity's PreInvocation variant reads state only and emits an ephemeral AFK event.
-Hooks never write state or transcripts, change permissions, poll, run in the background
-or use the network. Errors exit 0 with no output; a broken hook cannot block the host,
+These hooks never write state or transcripts, change permissions, poll, run in the
+background or use the network. In Claude Code a third read-only hook, `PermissionRequest`,
+declines the host's own approval prompts while the saved state is `afk`: it outputs a deny
+decision and never an allow, so the worst a forged state file can do is make prompts be
+declined. It leaves the prompt alone for the state helper's own command and when
+`AFKSWITCH_KEEP_PROMPTS` is `1`, `true` or `yes`. Errors exit 0 with no output; a broken hook cannot block the host,
 but may leave session awareness stale. Codex and Antigravity hook files are experimental,
 not selected by default manifests and not verified in a live host.
 
@@ -38,7 +42,7 @@ applies. Pending actions cannot be pressed twice; failures display disk truth an
 an error mark, never an assumed successful transition. Hook failures call `next(e)`.
 
 Transcript markers and opaque presence context are informational, not authorization or
-a security boundary. The bounded tail can omit an old marker; a same-generation state
+a security boundary. The bounded tail (at most 64 MiB) can omit an old marker; a same-generation state
 recreation can be indistinguishable from a repeat without a checkpoint. The hook adds
 no durable checkpoint, database or service. See the [sync contract](spec/presence.md#session-local-awareness-and-sync).
 
