@@ -4,6 +4,8 @@ type Status = 'available' | 'afk'
 type ReadStatus = Status | 'missing' | null
 
 let showOnboarding = false
+// The AbovePrompt band is drawn on these surfaces; every other one passes through.
+const drawn = (surface: unknown): boolean => surface === 'terminal' || surface === 'desktop'
 type Cache = {
   initialized: boolean
   lastGood: ReadStatus
@@ -34,12 +36,15 @@ const validContext = (value: unknown): boolean => value === null ||
     !/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\ud800-\udfff]/u.test(value))
 
 async function readStatus($: EngineInterface): Promise<ReadStatus> {
-  const override = await $.env.get('AFKSWITCH_STATE_DIR')
-  const home = override ? undefined : (await $.env.get('HOME')) || (await $.env.get('USERPROFILE'))
-  const directory = override || (home ? `${home}/.afkswitch` : undefined)
-  if (!directory) return null
-
   try {
+    const override = await $.env.get('AFKSWITCH_STATE_DIR')
+    // Mirror Python's Path.home(), which the helper uses: on Windows it reads USERPROFILE and ignores HOME.
+    const windows = !override && (await $.env.get('OS')) === 'Windows_NT'
+    const profile = override ? undefined : await $.env.get('USERPROFILE')
+    const posix = override ? undefined : await $.env.get('HOME')
+    const home = windows ? profile || posix : posix || profile
+    const directory = override || (home ? `${home}/.afkswitch` : undefined)
+    if (!directory) return null
     const path = `${directory.replace(/[\\/]+$/, '')}/state.json`
     if (await $.fs.exists(path) === false) return 'missing'
     const text = await $.fs.read(path)
@@ -99,7 +104,8 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     showOnboarding = false
     try {
-      const seen = await $.store.get('onboardingVersion')
+      // Spend the one-time onboarding only where it is shown.
+      const seen = drawn(e.surface) ? await $.store.get('onboardingVersion') : 1
       if (!(typeof seen === 'number' && seen >= 1)) {
         showOnboarding = true
         await $.store.set('onboardingVersion', 1)
@@ -140,8 +146,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    // This release advertises the terminal only; remote paint is not verified.
-    if (e.surface !== 'terminal') return next(e)
+    if (!drawn(e.surface)) return next(e)
     if (!cache.initialized) await refresh($, cache)
 
     const status = cache.readable ? cache.lastGood : null

@@ -251,8 +251,7 @@ def locked(directory: Path):
         except FileExistsError:
             refused_since = None
             if _lock_is_stale(path):
-                _break_stale_lock(path)
-                continue
+                _break_stale_lock(path)  # may fail; the deadline below still applies
         except PermissionError:
             # Windows reports a lock file that is being deleted as "access denied".
             # A real refusal (read-only sandbox) persists and is raised after a second.
@@ -466,7 +465,7 @@ def transition(command: str, context: str | None = None) -> dict:
 
 def core_event(status: str, generation: int, context: str | None = None,
                reset: bool = False) -> str:
-    """Portable event text; context is opaque data, including any following lines."""
+    """Portable event text; context is one quoted JSON string, so it cannot pose as event lines."""
     if status not in STATUSES or not _is_int(generation) or generation < 1:
         raise HelperError("invalid_event", "event requires a valid status and generation >= 1")
     problem = context_problem(context)
@@ -480,7 +479,7 @@ def core_event(status: str, generation: int, context: str | None = None,
     )
     marker = " reset" if reset else ""
     return (f"[AFKSwitch g{generation}{marker}]\nstatus: {status}\n"
-            f"context: {context if context else 'none'}\n{semantics}")
+            f"context: {json.dumps(context, ensure_ascii=False) if context else 'none'}\n{semantics}")
 
 
 USAGE = "usage: afkswitch_state.py (afk | back) [--context TEXT | --context-stdin] | read"

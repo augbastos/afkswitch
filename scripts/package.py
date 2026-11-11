@@ -41,7 +41,8 @@ with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as z:
     for directory in include_dirs:
         for path in sorted((ROOT / directory).rglob("*")):
             if (path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
-                    and ".test." not in path.name):
+                    and ".test." not in path.name
+                    and "readme" not in path.relative_to(ROOT).parts):  # README pictures: the README is not shipped
                 z.write(path, path.relative_to(ROOT).as_posix())
 
 print(out)

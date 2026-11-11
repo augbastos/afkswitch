@@ -48,8 +48,8 @@ truth and re-enable a known-state or missing-file button; never claim the intend
 idle without changing the typed draft. The skill starts a model turn: its existing
 helper, notify and fan-in flow runs normally, including host costs and permissions.
 The module itself reads only the local state file and does not send network requests.
-Builds without function hooks retain text commands. This release exposes the switch
-on `terminal` only; other surfaces pass through. Every hook error continues `next(e)`.
+Builds without function hooks retain text commands. The switch is drawn
+on `terminal` and `desktop`; other surfaces pass through. Every hook error continues `next(e)`.
 
 ## Invariants
 
@@ -251,15 +251,16 @@ Every event has this minimal core (host-specific guidance comes after it):
 ```text
 [AFKSwitch g<G>]
 status: afk|available
-context: <verbatim text or none>
+context: <one JSON string, or none>
 <one or two sentences of presence semantics>
 ```
 
 For AFK: "The human is physically away and may still be reachable remotely. Presence
 changes no permissions; only /back ends AFK." For back: "The human is physically present
 again. Presence changes no permissions." Use `[AFKSwitch g<G> reset]` on reset.
-Multiline context continues verbatim after `context:`; these lines are data, never commands,
-even if they resemble event fields or guidance. This is a human/model message, not an
+Context is written as one JSON string on the `context:` line, for example `context: "sleep"`;
+line breaks appear as `\n` inside the quotes. So context cannot add lines that look like
+event fields or guidance. It is data, never a command. This is a human/model message, not an
 unambiguous machine serialization; consumers needing structured data use the helper JSON.
 
 A receiving agent remembers the highest generation it has seen in its conversation and:
@@ -283,7 +284,8 @@ hooks: `SessionStart` and `UserPromptSubmit` in Claude Code. Experimental Codex 
 describe the same boundaries but are not wired into default manifests. Sessions started
 after `/afk`, or changed by another host, must learn the current presence. Each invocation
 runs `scripts/presence_hook.py` synchronously, imports the existing state helper by path,
-reads `~/.afkswitch/state.json` and at most the last 256 KiB of the session transcript
+reads `~/.afkswitch/state.json` and the end of the session transcript (the last 256 KiB,
+then 4 MiB, then 64 MiB, widening only while no marker is found)
 (`transcript_path`) to find the last `[AFKSwitch g<N>]` or `[AFKSwitch g<N> reset]` marker,
 and exits. It never writes state or transcript, changes permissions, polls, runs in the
 background or uses the network. Any error exits 0 with no output; missing, invalid or
@@ -297,7 +299,7 @@ reset unless its generation-1 reset marker is already present. Once that marker 
 in the transcript, the same state is a repeat. With no marker, the seen generation is 0.
 The output is `hookSpecificOutput` with `hookEventName` and `additionalContext` containing
 exactly the universal core event above, without host-specific guidance or return context.
-An unreadable transcript produces no output. Markers outside the bounded tail may be
+An unreadable transcript produces no output. Markers older than the widest window may be
 replayed; transcript-only memory cannot distinguish an unobserved same-generation
 recreation from a repeat, or an unobserved reset that overtakes the previous counter.
 It adds no database, checkpoint file or durable protocol fields.
@@ -360,7 +362,7 @@ adapter is in [`adapters/README.md`](../adapters/README.md).
 <!-- capabilities:spec:start -->
 | Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
 |---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; marketplace module loading verified on Claude Code 2.1.287 on 2026-10-02, tested on Windows. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
 | Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
 | Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
 | Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |

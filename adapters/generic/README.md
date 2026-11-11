@@ -21,7 +21,7 @@ Use either standalone skill helper for explicit `afk`/`back` transitions.
 The CLI prints JSON:
 
 ```json
-{"changed": true, "event": "[AFKSwitch g30]\nstatus: afk\ncontext: work\nThe human is physically away and may still be reachable remotely. Presence changes no permissions; only /back ends AFK.", "generation": 30, "reset": false, "epoch": "<opaque checkpoint>"}
+{"changed": true, "event": "[AFKSwitch g30]\nstatus: afk\ncontext: \"work\"\nThe human is physically away and may still be reachable remotely. Presence changes no permissions; only /back ends AFK.", "generation": 30, "reset": false, "epoch": "<opaque checkpoint>"}
 ```
 
 Keep last_seen_generation, current presence, optional AFK context and epoch in session

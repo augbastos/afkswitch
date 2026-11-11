@@ -37,7 +37,7 @@ applies, and outputs should be reviewed before sharing.
 Version 0.6 replaces the earlier "no hooks" constraint with two read-only lifecycle
 hooks, SessionStart and UserPromptSubmit, because sessions started after `/afk` and
 changes from another host need current presence. `scripts/presence_hook.py` reads
-`~/.afkswitch/state.json` through the existing helper and at most the last 256 KiB of
+`~/.afkswitch/state.json` through the existing helper and the end of the session transcript (the last 256 KiB, widening to 4 MiB and at most 64 MiB only while no marker is found) of
 the session transcript to find its last AFKSwitch marker. It outputs only the universal
 presence event (status, generation, AFK context and presence semantics) in host context,
 never transcript contents. Antigravity's PreInvocation variant reads no transcript and

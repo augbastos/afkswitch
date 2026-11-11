@@ -157,13 +157,44 @@ def test_agy_ephemeral_only_afk(files, monkeypatch):
     assert call(files, monkeypatch, "agy", "PreInvocation") is None
 
 
-def test_bounded_tail_and_marker_at_end(files, monkeypatch):
+def test_window_grows_until_the_marker_is_found(files, monkeypatch):
     path, transcript = files
     state(path)
-    transcript.write_bytes(sync_record(5).encode("utf-8") + b"x" * hook.TAIL_BYTES)
-    assert call(files, monkeypatch) is not None  # Old marker lies outside the bounded tail.
+    filler = (json.dumps({"message": "x" * 1000}) + "\n").encode("utf-8") * 600  # > 256 KiB
+    transcript.write_bytes(sync_record(5).encode("utf-8") + filler)
+    assert call(files, monkeypatch) is None  # found in a wider window: no replay
+
+
+def test_marker_outside_the_largest_window_is_replayed(files, monkeypatch):
+    path, transcript = files
+    state(path)
+    monkeypatch.setattr(hook, "WINDOWS", (1024, 4096), raising=False)
+    transcript.write_bytes(sync_record(5).encode("utf-8") + b"x" * 8192)
+    assert call(files, monkeypatch) is not None
     with transcript.open("ab") as stream:
         stream.write(("\n" + sync_record(5)).encode("utf-8"))
+    assert call(files, monkeypatch) is None
+
+
+def test_newer_marker_cut_at_the_window_start_is_still_found(files, monkeypatch):
+    path, transcript = files
+    state(path, generation=6)
+    big = hook.load_helper().core_event("afk", 6, "x" * 2000)
+    newer = json.dumps({"attachment": {"type": "hook_additional_context", "content": [big], "pad": "y" * 3000}}) + "\n"
+    monkeypatch.setattr(hook, "WINDOWS", (1024, 1024 * 1024))
+    transcript.write_text(sync_record(7) + newer + sync_record(5), encoding="utf-8")
+    assert hook.last_marker(transcript) == (5, False)  # the last record wins, even after widening
+    transcript.write_text(sync_record(5) + newer, encoding="utf-8")  # only the cut record is in the first window
+    assert hook.last_marker(transcript) == (6, False)
+
+
+def test_marker_record_with_unicode_line_separator_is_found(files, monkeypatch):
+    path, transcript = files
+    context = "back at 9\u2028second line"
+    state(path, context=context)
+    event = hook.load_helper().core_event("afk", 5, context)
+    record = {"attachment": {"type": "hook_additional_context", "content": [event]}}
+    transcript.write_text(json.dumps(record, ensure_ascii=False) + "\n", encoding="utf-8")
     assert call(files, monkeypatch) is None
 
 

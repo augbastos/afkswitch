@@ -38,10 +38,11 @@ const setup = (on: On, raw: string | null | undefined, variables = { AFKSWITCH_S
   return disk
 }
 
-const mount = ($: Engine, surface: 'terminal' | 'desktop' = 'terminal') =>
+const mount = ($: Engine, surface: 'terminal' | 'desktop' | 'vscode' = 'terminal') =>
   $.ui.mount({ plugin: 'afkswitch', surface, component: 'AbovePrompt', props: PROPS })
 
-for (const surface of ['terminal', 'desktop'] as const) {
+// terminal and desktop draw the switch; vscode passes through.
+for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
   for (const seen of [undefined, 1, 2, '1', 0]) {
     test(`${surface}: onboarding version ${seen}`, async ($, on) => {
       setup(on, state('available'))
@@ -51,17 +52,18 @@ for (const surface of ['terminal', 'desktop'] as const) {
       await $.session.start({ cwd: '/test-project', surface, isInteractive: true })
       const ui = await mount($, surface)
       const firstUse = typeof seen !== 'number' || seen < 1
-      expect(saved).toHaveLength(firstUse ? 1 : 0)
-      if (firstUse) expect(saved[0]).toMatchObject({ key: 'onboardingVersion', value: 1 })
+      const spent = firstUse && surface !== 'vscode'
+      expect(saved).toHaveLength(spent ? 1 : 0)
+      if (spent) expect(saved[0]).toMatchObject({ key: 'onboardingVersion', value: 1 })
       for (const text of ONBOARDING) {
         const line = await ui.find({ type: 'Text', text })
-        if (firstUse && surface === 'terminal') expect(line?.props).toMatchObject({ dimColor: true })
+        if (spent) expect(line?.props).toMatchObject({ dimColor: true })
         else expect(line).toBeUndefined()
       }
       expect(await $.prompt.submit({ text: 'unchanged', wait: false, origin: { kind: 'composer' } }))
         .toEqual({ text: 'unchanged' })
       expect(await ui.find({ text: ONBOARDING[0] })).toBeUndefined()
-      if (surface === 'desktop') expect(await ui.drawn()).toEqual(BASE)
+      if (surface === 'vscode') expect(await ui.drawn()).toMatchObject(BASE)
     })
   }
   for (const operation of ['store.get', 'store.set'] as const) {
@@ -72,7 +74,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
       await $.session.start({ cwd: '/test-project', surface, isInteractive: true })
       const ui = await mount($, surface)
       expect(await ui.find({ text: ONBOARDING[0] })).toBeUndefined()
-      if (surface === 'desktop') expect(await ui.drawn()).toEqual(BASE)
+      if (surface === 'vscode') expect(await ui.drawn()).toMatchObject(BASE)
       else expect(await ui.find({ key: 'afkswitch-toggle' })).toBeDefined()
     })
   }
@@ -86,8 +88,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     test(`${surface}: ${name} draws confirmed cells or passes through`, async ($, on) => {
       const disk = setup(on, raw)
       const ui = await mount($, surface)
-      if (surface === 'desktop') {
-        expect(await ui.drawn()).toEqual(BASE)
+      if (surface === 'vscode') {
+        expect(await ui.drawn()).toMatchObject(BASE)
         expect(disk.reads).toHaveLength(0)
         return
       }
@@ -367,12 +369,21 @@ for (const variables of [{ HOME: '/test-home' }, { USERPROFILE: '/test-profile' 
   })
 }
 
-test('unexpected module error continues next(e)', async ($, on) => {
+test('Windows reads USERPROFILE even when HOME is set, as the helper does', async ($, on) => {
+  const disk = setup(on, state('afk'), { OS: 'Windows_NT', HOME: '/test-home', USERPROFILE: '/test-profile' } as never)
+  const ui = await mount($)
+  expect(await ui.find({ text: '■□' })).toBeDefined()
+  expect(disk.reads[0].replace(/\\/g, '/')).toMatch(/\/test-profile\/\.afkswitch\/state\.json$/)
+})
+
+test('an environment error draws unknown state and keeps the band beneath', async ($, on) => {
   let nextCalls = 0
-  on('env.get', () => { throw new Error('synthetic module error') })
+  on('env.get', () => ({ deny: 'synthetic module error' }))
   on('ui.render', () => { nextCalls += 1; return BASE })
   const ui = await mount($)
-  expect(await ui.drawn()).toEqual(BASE)
+  expect(await ui.find({ text: 'existing band' })).toBeDefined()
+  expect(await ui.find({ text: '□□' })).toBeDefined()
+  expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
   expect(nextCalls).toBe(1)
 })
 

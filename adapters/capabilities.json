@@ -1,5 +1,5 @@
 {
-  "description": "Canonical AFKSwitch support matrix. scripts/validate.py renders it into docs/details.md, spec/presence.md and adapters/README.md (python scripts/validate.py --write) and fails when they drift. The root README table is a historical snapshot retained for this change.",
+  "description": "Canonical AFKSwitch support matrix. scripts/validate.py renders it into docs/details.md, spec/presence.md and adapters/README.md (python scripts/validate.py --write) and fails when they drift. The root README keeps a shorter hand-written summary.",
   "capabilities": {
     "state": "Read and write durable presence state.",
     "sync": "Reconcile global generation with session last_seen_generation at a lifecycle boundary before meaningful work; reset starts a new epoch.",
@@ -12,11 +12,11 @@
       "id": "claude-code",
       "name": "Claude Code",
       "state": true, "sync": true, "notify": true, "fanIn": true,
-      "visualSwitch": true, "visualSwitchSurfaces": ["terminal"],
+      "visualSwitch": true, "visualSwitchSurfaces": ["terminal", "desktop"],
       "reference": true,
       "invoke": ["/afk", "/back"],
       "native": ["ListAgents", "SendMessage", "notify_when_idle"],
-      "notes": "Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; marketplace module loading verified on Claude Code 2.1.287 on 2026-10-02, tested on Windows. The Claude plugin directory copy currently omits the switch while mods are reviewed.",
+      "notes": "Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed.",
       "evidence": "hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle."
     },
     {

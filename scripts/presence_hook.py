@@ -9,7 +9,9 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
-TAIL_BYTES = 256 * 1024
+# Tail sizes tried in order; a wider one is read only when the narrower one holds no marker.
+WINDOWS = (256 * 1024, 4 * 1024 * 1024, 64 * 1024 * 1024)
+NEEDLE = b"[AFKSwitch g"
 MARKER = re.compile(r"\A(?:<cross-session-message[^>\n]*>\n)?\[AFKSwitch g([1-9][0-9]*)( reset)?\]\nstatus: (?:afk|available)\ncontext: ")
 HELPER_PATH = Path(__file__).resolve().parents[1] / "skills/afk/scripts/afkswitch_state.py"
 
@@ -51,20 +53,27 @@ def last_marker(path):
     """Read at most the transcript tail; no transcript or checkpoint is written."""
     if not path:
         return 0, False
-    with Path(path).open("rb") as transcript:
-        transcript.seek(0, 2)
-        transcript.seek(max(0, transcript.tell() - TAIL_BYTES))
-        tail = transcript.read(TAIL_BYTES).decode("utf-8", errors="replace")
     last = None
-    for line in tail.splitlines():
-        try:
-            record = json.loads(line)
-        except ValueError:
-            continue  # Includes a partial JSONL record at the bounded tail's start.
-        for text in transcript_strings(record):
-            match = MARKER.match(text)
-            if match:
-                last = match  # Only the event header; carried context is opaque.
+    with Path(path).open("rb") as transcript:
+        size = transcript.seek(0, 2)
+        for window in WINDOWS:
+            last, cut = None, False
+            transcript.seek(max(0, size - window))
+            # Split on LF only: str.splitlines() would also cut a record at a raw U+2028.
+            for line in transcript.read(window).split(b"\n"):
+                if NEEDLE not in line:
+                    continue  # Skips JSON parsing for almost every record.
+                try:
+                    record = json.loads(line.decode("utf-8", errors="replace"))
+                except ValueError:
+                    cut = True  # A marker record cut at the window's start: look wider.
+                    continue
+                for text in transcript_strings(record):
+                    match = MARKER.match(text)
+                    if match:
+                        last = match  # Only the event header; carried context is opaque.
+            if (last and not cut) or window >= size:
+                break
     return (int(last.group(1)), bool(last.group(2))) if last else (0, False)
 
 

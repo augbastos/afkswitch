@@ -219,9 +219,9 @@ for host in capabilities["hosts"]:
         fail(f"{host['id']}: capabilities require state")
     if host["fanIn"] and not host["notify"]:
         fail(f"{host['id']}: fanIn requires notify")
-    expected_surfaces = ["terminal"] if host["id"] == "claude-code" else []
+    expected_surfaces = ["terminal", "desktop"] if host["id"] == "claude-code" else []
     if host["visualSwitch"] != bool(expected_surfaces) or host.get("visualSwitchSurfaces") != expected_surfaces:
-        fail(f"{host['id']}: visualSwitch is terminal-only in Claude Code")
+        fail(f"{host['id']}: visualSwitch is terminal and desktop in Claude Code only")
     if host["id"] in {"codex", "agy"} and host["sync"]:
         fail(f"{host['id']}: experimental hooks do not claim live-host sync")
 
@@ -231,25 +231,20 @@ def host_label(host: dict) -> str:
 
 
 def render(style: str) -> str:
-    hosts = capabilities["hosts"]
-    if style not in ("readme", "details", "spec", "adapters"):
+    if style not in ("details", "spec", "adapters"):
         fail(f"unknown capabilities style {style!r}")
-    extra = ["Notes"] if style == "readme" else ["Notes", "Evidence"]
-    headers = ["Host", "State", "Sync", "Notify", "Fan-in", "Visual switch", *extra]
+    headers = ["Host", "State", "Sync", "Notify", "Fan-in", "Visual switch", "Notes", "Evidence"]
     lines = ["| " + " | ".join(headers) + " |", "|" + "|".join("---" for _ in headers) + "|"]
-    for host in hosts:
-        cells = [host["name"] if style == "readme" else host_label(host)]
+    for host in capabilities["hosts"]:
+        cells = [host_label(host)]
         cells += ["yes" if host[key] else "no" for key in CAPABILITY_KEYS]
-        cells += [host["notes"]]
-        if style != "readme":
-            cells += [host["evidence"]]
+        cells += [host["notes"], host["evidence"]]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
 
 
 MARKER = re.compile(r"(<!-- capabilities:(\w+):start -->\n)(.*?)(<!-- capabilities:\2:end -->)", re.S)
-# The root README is explicitly frozen for this delivery; do not rewrite its
-# historical capability snapshot or treat it as the current canonical matrix.
+# The root README keeps a shorter, hand-written summary table; these three are generated.
 rendered_docs = {"docs/details.md": "details", "spec/presence.md": "spec",
                  "adapters/README.md": "adapters"}
 for path, style in rendered_docs.items():
@@ -272,8 +267,11 @@ for path in ("README.md", "PRIVACY.md"):
         fail(f"{path} must carry the privacy statement verbatim")
 
 # No personal paths in anything tracked.
-PERSONAL = re.compile(r"[A-Za-z]:\\\\?Users\\|/home/[a-z]|/Users/[A-Za-z]|\bV:\\|/tmp/")
-tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+# Any drive-letter path, a Git Bash drive path (/c/...), and the usual home and temp roots.
+PERSONAL = re.compile(r"(?<![A-Za-z])[A-Za-z]:[\\/]|(?<![\w.])/[a-z]/[A-Za-z]|/home/[a-z]|/Users/[A-Za-z]|/tmp/")
+tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+if not tracked:
+    fail("git lists no tracked files, so the personal-path check would read nothing")
 for rel in tracked:
     path = ROOT / rel
     if rel == "scripts/validate.py" or not path.is_file() or path.suffix in {".png", ".ico"}:

@@ -26,8 +26,9 @@ For Claude Code:
 /reload-plugins
 ```
 
-Needs `python3` (Python 3.9+) on `PATH`; the terminal switch needs Claude Code
-function hooks. AFKSwitch is a Claude Code Mod, live-tested on **2.1.287 on Windows**.
+Needs `python3` (Python 3.9+) on `PATH`; the switch needs Claude Code function hooks.
+On Windows, check that `python3 --version` answers: the Python install manager from
+python.org provides `python3`, the older classic installer provides only `python`. AFKSwitch is a Claude Code Mod, live-tested on **2.1.287 on Windows**.
 The [compatibility record](docs/compatibility.md) distinguishes local-marketplace
 module loading from live clicks and peer notification.
 
@@ -64,7 +65,7 @@ Capabilities from [the adapter matrix](adapters/capabilities.json):
 
 | Host | State | Sync | Notify peers | Collect return status | Visual switch |
 |---|---|---|---|---|---|
-| Claude Code | yes | yes | yes | yes | terminal, with modules |
+| Claude Code | yes | yes | yes | yes | terminal and desktop app, with modules |
 | Codex | yes | no | no | no | no |
 | Antigravity CLI | yes | no | no | no | no |
 | Generic local agent | yes | before each turn, if the host calls the helper | no | no | no |

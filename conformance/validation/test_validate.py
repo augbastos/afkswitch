@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
     ("module", "Claude hook manifest must combine command hooks with ./switch.tsx"),
     ("codex-hooks", "default non-Claude manifests must not wire experimental hooks"),
     ("experimental-sync", "experimental hooks do not claim live-host sync"),
-    ("visual-surfaces", "visualSwitch is terminal-only in Claude Code"),
+    ("visual-surfaces", "visualSwitch is terminal and desktop in Claude Code only"),
 ])
 def test_validator_rejects_drift_in_an_isolated_copy(tmp_path, mutation, message):
     # Only these public source files are needed before the deliberate validation fault.
@@ -50,7 +50,7 @@ def test_validator_rejects_drift_in_an_isolated_copy(tmp_path, mutation, message
         if mutation == "experimental-sync":
             next(host for host in capabilities["hosts"] if host["id"] == "codex")["sync"] = True
         else:
-            capabilities["hosts"][0]["visualSwitchSurfaces"] = ["terminal", "desktop"]
+            capabilities["hosts"][0]["visualSwitchSurfaces"] = ["terminal", "desktop", "vscode"]
         path.write_text(json.dumps(capabilities), encoding="utf-8")
     proc = subprocess.run([sys.executable, str(repo / "scripts/validate.py")], capture_output=True,
                           text=True, env=dict(os.environ, TEMP=str(tmp_path), TMP=str(tmp_path)))

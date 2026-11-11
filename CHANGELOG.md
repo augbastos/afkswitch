@@ -4,10 +4,22 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-11-11
+
+### Fixed
+
+- The presence note is no longer repeated on almost every prompt in a busy session: the sync hook widens its transcript window (256 KiB, 4 MiB, 64 MiB) until it finds the last note.
+- A leftover lock file that cannot be removed no longer makes `/afk` and `/back` spin forever; they give up after 15 seconds with `state is busy`.
+- On Windows the switch reads the same home folder as the state helper when `HOME` and `USERPROFILE` differ.
+- `install.ps1` refuses to overwrite or delete an `afk` or `back` folder that is not an AFKSwitch skill.
+- The one-time onboarding is spent only where it is shown.
 
 ### Changed
 
+- Presence notes print the context as one quoted JSON string (`context: "sleep"`), so context text cannot pose as part of the note.
+- The switch is also drawn in the Claude Code desktop app.
+- CI runs the switch module tests on Linux, Windows and macOS.
+- The plugin archive no longer carries the README pictures.
 - Queue human decisions while AFK without stalling independent authorized work; review them together on return and include their count in status replies.
 
 ## [0.6.8] - 2026-10-19

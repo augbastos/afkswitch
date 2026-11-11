@@ -40,7 +40,7 @@ A session that has not answered `/back` is *no reply yet* — never "done", "fai
 <!-- capabilities:details:start -->
 | Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
 |---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on terminal builds with function hooks; marketplace module loading verified on Claude Code 2.1.287 on 2026-10-02, tested on Windows. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection. Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
 | Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
 | Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
 | Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
@@ -174,9 +174,10 @@ One-time onboarding lines explain the switch; `saving…` marks a pending action
 `not switched — try /afk or /back` marks a failed or unconfirmed action.
 Before first use, a definitely missing state file gives
 the same neutral cells a button that starts AFK. Unreadable or invalid state is not
-clickable and never implies available. Desktop and other
-surfaces continue the original render without drawing the switch in this release;
-tests cover terminal drawing and desktop pass-through, not native pixel or glyph paint.
+clickable and never implies available. The desktop app draws the same switch; other
+surfaces continue the original render. Tests cover the drawing tree on terminal and
+desktop and VS Code pass-through, not native pixel or glyph paint; nobody has yet
+checked the desktop drawing by eye.
 The cells distinguish presence without relying on color.
 
 The module reads presence from `~/.afkswitch/state.json` using `$.fs.read`, with
@@ -215,22 +216,23 @@ see [compatibility](compatibility.md).
 Version 0.6 replaces the earlier "no hooks" constraint so sessions opened after `/afk`
 and changes from another host reach the session. The two read-only `SessionStart` and
 `UserPromptSubmit` command hooks run `scripts/presence_hook.py` once, read
-`~/.afkswitch/state.json` through the existing helper and the last 256 KiB of the session
-transcript to find the last AFKSwitch marker, and return the universal core event in
+`~/.afkswitch/state.json` through the existing helper and the end of the session
+transcript (256 KiB, then 4 MiB, then 64 MiB while no marker is found) to find the last AFKSwitch marker, and return the universal core event in
 `hookSpecificOutput.additionalContext` only when needed. Startup/clear injects only AFK;
 resume/compact/fork and prompt submission inject newer generations or unseen resets.
 They never write state or transcripts, poll, run in the background, change permissions
 or use the network. Errors, missing/invalid state and future state versions exit 0
 with no output. Transcript-only memory cannot detect same-generation recreation without
-a changed marker, and old markers outside the tail can be replayed.
+a changed marker, and markers older than the widest window can be replayed.
 
 Claude Code discovers [hooks/hooks.json](../hooks/hooks.json). Codex's default manifests
 have no `hooks` pointer; [hooks/codex.json](../hooks/codex.json) remains a documented
 experimental file, using `--host codex` and `${PLUGIN_ROOT}`. It has only synthetic
 tests and is not verified in a live host. Do not infer active sync from shipped files.
 
-Both command manifests use `python3` and a 5-second timeout. On Windows, `python3` may
-be absent or an app execution alias: ensure it resolves to Python 3.9+, or adapt the
+Both command manifests use `python3` and a 5-second timeout. On Windows, the Python
+install manager provides `python3`; with the classic installer it may be absent or an
+app execution alias: ensure it resolves to Python 3.9+, or adapt the
 installed command to `python` or `py -3`. The explicit skills' interpreter discovery
 does not change hook commands. No shell wrapper is bundled.
 

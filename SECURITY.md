@@ -20,7 +20,7 @@ which reads and writes the `~/.afkswitch` folder and exits. Version 0.6 replaces
 earlier "no hooks" constraint with two read-only lifecycle hooks, `SessionStart` and
 `UserPromptSubmit`, so sessions opened after `/afk` and changes from other hosts are
 reconciled. They run `scripts/presence_hook.py`, read `~/.afkswitch/state.json` through
-that helper and at most the last 256 KiB of the session transcript for the last AFKSwitch
+that helper and the end of the session transcript (the last 256 KiB, widening to 4 MiB and at most 64 MiB only while no marker is found) for the last AFKSwitch
 marker, and output the universal presence event as host context only when needed.
 Antigravity's PreInvocation variant reads state only and emits an ephemeral AFK event.
 Hooks never write state or transcripts, change permissions, poll, run in the background
@@ -38,7 +38,7 @@ applies. Pending actions cannot be pressed twice; failures display disk truth an
 an error mark, never an assumed successful transition. Hook failures call `next(e)`.
 
 Transcript markers and opaque presence context are informational, not authorization or
-a security boundary. The bounded tail can omit an old marker; a same-generation state
+a security boundary. The bounded tail (at most 64 MiB) can omit an old marker; a same-generation state
 recreation can be indistinguishable from a repeat without a checkpoint. The hook adds
 no durable checkpoint, database or service. See the [sync contract](spec/presence.md#session-local-awareness-and-sync).
 

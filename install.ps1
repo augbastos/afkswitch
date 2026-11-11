@@ -17,6 +17,14 @@ $names  = @('afk', 'back')
 foreach ($name in $names) {
     $dest = Join-Path $target $name
 
+    # afk and back are common names: never touch a folder that is not an AFKSwitch skill.
+    $skill = Join-Path $dest 'SKILL.md'
+    $ours = (Test-Path -LiteralPath $skill) -and (Select-String -LiteralPath $skill -SimpleMatch '~/.afkswitch/state.json' -Quiet)
+    if ((Test-Path $dest) -and -not $ours) {
+        if ($Uninstall) { "skipped  $dest (not an AFKSwitch skill)"; continue }
+        throw "refusing: $dest exists and is not an AFKSwitch skill. Move it away first, or use /afkswitch:$name."
+    }
+
     if ($Uninstall) {
         if (Test-Path $dest) { Remove-Item $dest -Recurse -Force; "removed  $dest" }
         else { "absent   $dest" }
