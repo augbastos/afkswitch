@@ -57,7 +57,7 @@ starts a model turn; the host's permissions and costs still apply.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/states-dark.png">
-  <img src="assets/readme/states-light.png" alt="The switch in its two states: at the computer (runs /back) and away from the computer (runs /afk)">
+  <img src="assets/readme/states-light.png" alt="The switch in its two states: at the computer (set by /back) and away from the computer (set by /afk)">
 </picture>
 
 ### What the switch runs by itself
@@ -143,7 +143,7 @@ in a live host; see [the Antigravity adapter](adapters/agy/README.md).
 
 ## Test
 
-Run from the repo root. Python 3.9 or newer; `pytest` is the only extra package.
+Run from the repo root. Python 3.9 or newer; `pytest` is required; `jsonschema` is optional and enables the schema checks.
 
 ```text
 python scripts/validate.py
@@ -164,7 +164,7 @@ See [conformance](conformance/README.md) for what each check proves.
 | `spec/` | The portable presence specification |
 | `conformance/` | Model-independent tests and checker |
 | `evals/` | Opt-in local model evals |
-| `scripts/` | Validator, packager and logo generator |
+| `scripts/` | Validator, packager, logo generator and the sync hook script |
 | `docs/` | Details, compatibility record, history |
 | `assets/` | Logos and README pictures |
 | `.claude-plugin/`, `.codex-plugin/`, `plugin.json` | Plugin manifests |
