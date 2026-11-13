@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   checks:
     name: checks (${{ matrix.os }}, Python ${{ matrix.python }})
@@ -22,16 +26,18 @@ jobs:
           - os: ubuntu-latest
             python: "3.9"  # the helper's floor
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 2
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install --disable-pip-version-check --quiet pytest jsonschema
+          cache: pip
+          cache-dependency-path: .github/ci/requirements.txt
+      - run: python -m pip install --disable-pip-version-check --quiet -r .github/ci/requirements.txt
       - name: Validate manifests, helper, schemas, capability tables, links, archive
         run: python scripts/validate.py
       - name: Build the plugin archive and list it
@@ -39,7 +45,7 @@ jobs:
           zip_path=$(python scripts/package.py)
           python -m zipfile -l "$zip_path"
       - name: Conformance (state incl. concurrency and migration fixtures, schema agreement, checker)
-        run: python -m pytest conformance -q -p no:cacheprovider
+        run: python scripts/test_ci.py
 
   mod-tests:
     name: mod tests (${{ matrix.os }})
@@ -48,27 +54,31 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 2
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
-      - run: npm install -g @anthropic-ai/claude-code && claude --version
+          cache: npm
+          cache-dependency-path: .github/ci/package-lock.json
+      - run: npm ci --prefix .github/ci --no-audit --no-fund
       - name: Switch module tests and strict plugin validation (no login needed)
         run: |
+          export PATH="$PWD/.github/ci/node_modules/.bin:$PATH"
+          claude --version
           claude plugin test .
           claude plugin validate --strict .
 
   windows-installer-smoke:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 1
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.13"
       - name: Refuse a folder that is not an AFKSwitch skill
