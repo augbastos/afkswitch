@@ -68,7 +68,7 @@ jobs:
       - run: npm ci --prefix .github/ci --no-audit --no-fund
       - name: Switch module tests and strict plugin validation (no login needed)
         run: |
-          export PATH="$GITHUB_WORKSPACE/.github/ci/node_modules/.bin:$PATH"
+          export PATH="$PWD/.github/ci/node_modules/.bin:$PATH"
           claude --version
           claude plugin test .
           claude plugin validate --strict .
