@@ -150,6 +150,11 @@ python scripts/validate.py
 python -m pytest conformance -q -p no:cacheprovider
 ```
 
+CI installs pinned dependencies from `.github/ci/requirements.txt` and runs
+`python scripts/test_ci.py`, which runs every conformance module in a separate
+process with its own temporary directory, using at most one process per CPU.
+The OS and Python support matrix stays in `.github/workflows/validate.yml`.
+
 On a Claude Code build with function hooks, `claude plugin test .` runs the switch module
 tests. The opt-in model evals in [`evals/`](evals/README.md) are not part of CI.
 See [conformance](conformance/README.md) for what each check proves.
