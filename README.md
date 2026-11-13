@@ -5,7 +5,7 @@
   <img src="assets/readme/hero-light.png" alt="AFKSwitch — away and back presence for your agents">
 </picture>
 
-[![validate](https://github.com/augbastos/afkswitch/actions/workflows/validate.yml/badge.svg)](https://github.com/augbastos/afkswitch/actions/workflows/validate.yml)
+[![CI](https://github.com/augbastos/afkswitch/actions/workflows/ci.yml/badge.svg)](https://github.com/augbastos/afkswitch/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/augbastos/afkswitch)](https://github.com/augbastos/afkswitch/releases)
 
@@ -153,7 +153,10 @@ python -m pytest conformance -q -p no:cacheprovider
 CI installs pinned dependencies from `.github/ci/requirements.txt` and runs
 `python scripts/test_ci.py`, which runs every conformance module in a separate
 process with its own temporary directory, using at most one process per CPU.
-The OS and Python support matrix stays in `.github/workflows/validate.yml`.
+The OS and Python support matrix stays in `.github/workflows/ci.yml`.
+The required checks are `Safety` and `CI passed`. `Safety` scans PR commits for
+secrets and checks critical paths against the base revision's policy. `CI passed`
+requires every job to succeed; only `Safety` may be skipped outside pull requests.
 
 On a Claude Code build with function hooks, `claude plugin test .` runs the switch module
 tests. The opt-in model evals in [`evals/`](evals/README.md) are not part of CI.

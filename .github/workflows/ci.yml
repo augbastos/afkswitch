@@ -1,0 +1,199 @@
+# CI profile: public
+name: CI
+
+# One run per change: pushes to main, and pull requests (which cover their branches).
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  safety:
+    name: Safety
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout safety policy from the base revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base-policy
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      # One-time bootstrap: this migration's base has no safety.sh yet.
+      # Only then use the PR copy; subsequent PRs always execute the base copy.
+      - name: Bootstrap safety policy from the PR
+        if: hashFiles('base-policy/.github/scripts/safety.sh') == ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: bootstrap-policy
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Checkout PR history for secret scanning
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check secrets and critical effects
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          COMMITS: ${{ github.event.pull_request.commits }}
+          PR_DIR: ${{ github.workspace }}/pr
+        run: |
+          if [ -f base-policy/.github/scripts/safety.sh ]; then
+            bash base-policy/.github/scripts/safety.sh
+          else
+            echo 'One-time bootstrap: safety.sh is absent from the base; running the PR copy.'
+            bash bootstrap-policy/.github/scripts/safety.sh
+          fi
+
+  checks:
+    name: Test (${{ matrix.platform }}, Python ${{ matrix.python }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Ubuntu
+            python: "3.13"
+          - os: windows-latest
+            platform: Windows
+            python: "3.13"
+          - os: macos-latest
+            platform: macOS
+            python: "3.13"
+          - os: ubuntu-latest
+            platform: Ubuntu
+            python: "3.9"  # the helper's floor
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 2
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: .github/ci/requirements.txt
+      - run: python -m pip install --disable-pip-version-check --quiet -r .github/ci/requirements.txt
+      - name: Validate manifests, helper, schemas, capability tables, links, archive
+        run: python scripts/validate.py
+      - name: Build the plugin archive and list it
+        run: |
+          zip_path=$(python scripts/package.py)
+          python -m zipfile -l "$zip_path"
+      - name: Conformance (state incl. concurrency and migration fixtures, schema agreement, checker)
+        run: python scripts/test_ci.py
+
+  mod-tests:
+    name: Mod tests (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Ubuntu
+          - os: windows-latest
+            platform: Windows
+          - os: macos-latest
+            platform: macOS
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 2
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: .github/ci/package-lock.json
+      - run: npm ci --prefix .github/ci --no-audit --no-fund
+      - name: Switch module tests and strict plugin validation (no login needed)
+        run: |
+          export PATH="$PWD/.github/ci/node_modules/.bin:$PATH"
+          claude --version
+          claude plugin test .
+          claude plugin validate --strict .
+
+  windows-installer-smoke:
+    name: Installer smoke (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 1
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - name: Refuse a folder that is not an AFKSwitch skill
+        shell: pwsh
+        run: |
+          $foreign = Join-Path $HOME '.claude/skills/afk'
+          New-Item -ItemType Directory -Force -Path $foreign | Out-Null
+          Set-Content (Join-Path $foreign 'SKILL.md') 'another skill'
+          $refused = $false
+          try { ./install.ps1 } catch { $refused = $true }
+          if (-not $refused) { throw 'installer overwrote a foreign skill' }
+          ./install.ps1 -Uninstall
+          if ((Get-Content (Join-Path $foreign 'SKILL.md') -Raw).Trim() -ne 'another skill') { throw 'foreign skill changed or deleted' }
+          Remove-Item $foreign -Recurse -Force
+      - name: Install personal skills
+        shell: pwsh
+        run: ./install.ps1
+      - name: Verify installed skills and helper
+        shell: pwsh
+        run: |
+          $skills = Join-Path $HOME '.claude/skills'
+          foreach ($f in 'afk/SKILL.md', 'back/SKILL.md', 'afk/scripts/afkswitch_state.py', 'back/scripts/afkswitch_state.py') {
+            if (-not (Test-Path (Join-Path $skills $f))) { throw "$f not installed" }
+          }
+          $env:AFKSWITCH_STATE_DIR = Join-Path $env:RUNNER_TEMP 'afkswitch-state'
+          $afk = python (Join-Path $skills 'afk/scripts/afkswitch_state.py') afk --context 'smoke test' | ConvertFrom-Json
+          $back = python (Join-Path $skills 'back/scripts/afkswitch_state.py') back | ConvertFrom-Json
+          if (-not $afk.ok -or $afk.status -ne 'afk') { throw "afk failed: $afk" }
+          if (-not $back.ok -or $back.status -ne 'available' -or $back.generation -ne 2) { throw "back failed: $back" }
+      - name: Uninstall
+        shell: pwsh
+        run: ./install.ps1 -Uninstall
+
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [safety, checks, mod-tests, windows-installer-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every job to succeed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          jq -e --arg event "$EVENT_NAME" '
+            to_entries | all(.value.result == "success" or
+              (.key == "safety" and .value.result == "skipped" and $event != "pull_request"))
+          ' <<< "$NEEDS_JSON"
