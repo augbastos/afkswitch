@@ -84,7 +84,7 @@ jobs:
           - os: macos-latest
             platform: macOS
             python: "3.13"
-          - os: ubuntu-latest
+          - os: ubuntu-24.04  # pinned: ubuntu-latest (26.04) no longer ships Python 3.9
             platform: Ubuntu
             python: "3.9"  # the helper's floor
     runs-on: ${{ matrix.os }}
