@@ -98,7 +98,8 @@ def test_safety_scan_pins_and_public_self_protection():
     script = (ROOT / ".github/scripts/safety.sh").read_text(encoding="utf-8")
     assert "/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" in script
     assert "5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba" in script
-    assert 'git --no-banner --redact --log-opts="-n $COMMITS"' in script
+    assert ('--log-opts="--text --no-textconv --no-ext-diff --diff-merges=first-parent '
+            '$BASE..$HEAD_SHA"') in script
     rule = re.search(r"'([^']+) :: changes the merge safety check itself'", script)[1]
     for path in (".github/scripts/safety.sh", ".github/safety-critical.txt", ".github/workflows/ci.yml"):
         assert re.search(rule, path)
@@ -107,3 +108,81 @@ def test_safety_scan_pins_and_public_self_protection():
     assert "safety-critical.txt?ref=$BASE" in script
     assert "set -euo pipefail" in script
     assert "invalid critical-path rule on the base revision" in script
+
+
+
+FAKES = {
+    "curl": 'exit "${DOWNLOAD_STATUS:-0}"\n',
+    "sha256sum": 'cat >/dev/null\nexit "${CHECKSUM_STATUS:-0}"\n',
+    "tar": 'cp "$FAKE_GITLEAKS" "$4/gitleaks"\nchmod +x "$4/gitleaks"\n',
+    "gitleaks": ('printf "%s\\n" "$*" > "$SCAN_ARGS"\n'
+                 '[ -e .gitleaksignore ] || [ -e .gitleaks.toml ] && echo present >> "$SCAN_ARGS"\n'
+                 'exit "${SCAN_STATUS:-0}"\n'),
+    "git": 'printf "%s\\n" "${HEAD_SHA_FAKE:-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}"\n',
+    "gh": textwrap.dedent("""\
+        case "$*" in
+          *'/pulls/'*) printf '%s\\n' "$CHANGED_FILES" ;;
+          *'/contents/.github?ref='*) printf '%s\\n' "$BASE_ENTRIES" ;;
+          *) exit 99 ;;
+        esac
+        """),
+}
+
+
+def run_policy(tmp_path, **changes):
+    """Run the real safety.sh against fake curl/tar/gitleaks/git/gh; returns (code, output, scan args)."""
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    if changes.pop("PLANT_GITLEAKS", None):
+        for name in (".gitleaksignore", ".gitleaks.toml"):
+            (tmp_path / name).write_text("allow everything\n")
+    for name, content in FAKES.items():
+        path = fake / name
+        path.write_text("#!/usr/bin/env bash\nset -eu\n" + content, newline="\n")
+        path.chmod(0o755)
+    env = dict(os.environ, FAKE_BIN=fake.as_posix(), PR_DIR=tmp_path.as_posix(),
+               TMPDIR=tmp_path.as_posix(), REPO="test/repo", PR="123", BASE="a" * 40,
+               FAKE_GITLEAKS=(fake / "gitleaks").as_posix(),
+               SCAN_ARGS=(tmp_path / "scan-args").as_posix(), CHANGED_FILES="docs/test.md",
+               BASE_ENTRIES="scripts\nworkflows")
+    env.update(changes)
+    # Resolve inside Bash so Windows drive colons never split the mock PATH.
+    command = 'export PATH="$(cd "$FAKE_BIN" && pwd):$PATH"; exec bash .github/scripts/safety.sh'
+    result = subprocess.run([BASH, "-c", command], cwd=ROOT, env=env, capture_output=True,
+                            text=True, timeout=30,
+                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    args = (tmp_path / "scan-args").read_text() if (tmp_path / "scan-args").exists() else ""
+    return result.returncode, result.stdout + result.stderr, args
+
+
+@pytest.mark.skipif(not BASH, reason="Bash required")
+def test_scan_uses_hardened_arguments_and_commit_range(tmp_path):
+    code, output, args = run_policy(tmp_path)
+    assert code == 0, output
+    assert "--ignore-gitleaks-allow" in args
+    assert "--config " in args
+    assert "--gitleaks-ignore-path " in args
+    assert ("--log-opts=--text --no-textconv --no-ext-diff --diff-merges=first-parent "
+            + "a" * 40 + ".." + "b" * 40) in args
+    assert "no critical effect" in output
+
+
+@pytest.mark.skipif(not BASH, reason="Bash required")
+def test_pr_cannot_configure_its_own_scanner(tmp_path_factory):
+    # The PR's .gitleaksignore/.gitleaks.toml are gone before gitleaks runs,
+    # and adding or changing them (or .gitattributes) needs the owner.
+    code, output, args = run_policy(tmp_path_factory.mktemp("plant"), PLANT_GITLEAKS="1")
+    assert code == 0, output
+    assert "present" not in args
+    for path in (".gitleaksignore", "sub/.gitleaks.toml", ".gitattributes"):
+        code, output, _ = run_policy(tmp_path_factory.mktemp("changed"), CHANGED_FILES=path)
+        assert code == 1, output
+        assert "changes what the secret scan sees" in output
+
+
+@pytest.mark.skipif(not BASH, reason="Bash required")
+@pytest.mark.parametrize("changes", [{"BASE": "main"}, {"HEAD_SHA_FAKE": "HEAD"}])
+def test_invalid_commit_ids_fail_closed(tmp_path, changes):
+    code, output, _ = run_policy(tmp_path, **changes)
+    assert code == 1, output
+    assert "invalid base or head commit" in output
