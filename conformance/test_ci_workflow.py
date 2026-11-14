@@ -83,7 +83,7 @@ def test_actual_aggregate_rejects_failures_skips_and_cancellations():
     for event in ("pull_request", "push", "workflow_dispatch"):
         for results in cases:
             expected = all(r == "success" for r in results[1:]) and (
-                results[0] == "success" or (results[0] == "skipped" and event != "pull_request"))
+                results[0] == "success" or (results[0] == "skipped" and event == "push"))
             needs = json.dumps({key: {"result": value} for key, value in zip(
                 ("safety", "checks", "mod-tests", "windows-installer-smoke"), results)})
             commands.append(f"EVENT_NAME='{event}' NEEDS_JSON='{needs}' gate >/dev/null 2>&1")
