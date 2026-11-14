@@ -138,7 +138,9 @@ def run_policy(tmp_path, **changes):
             (tmp_path / name).write_text("allow everything\n")
     for name, content in FAKES.items():
         path = fake / name
-        path.write_text("#!/usr/bin/env bash\nset -eu\n" + content, newline="\n")
+        # open(newline=) keeps LF on Windows and works on Python 3.9 (write_text has it only from 3.10)
+        with open(path, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write("#!/usr/bin/env bash\nset -eu\n" + content)
         path.chmod(0o755)
     env = dict(os.environ, FAKE_BIN=fake.as_posix(), PR_DIR=tmp_path.as_posix(),
                TMPDIR=tmp_path.as_posix(), REPO="test/repo", PR="123", BASE="a" * 40,
