@@ -53,7 +53,7 @@ def test_workflow_contract():
 def test_supported_matrix_and_cached_test_steps():
     legs = re.findall(r'- os: (\S+)\n\s+platform: (\S+)\n\s+python: "([\d.]+)"', JOBS["checks"])
     assert legs == [("ubuntu-latest", "Ubuntu", "3.13"), ("windows-latest", "Windows", "3.13"),
-                    ("macos-latest", "macOS", "3.13"), ("ubuntu-latest", "Ubuntu", "3.9")]
+                    ("macos-latest", "macOS", "3.13"), ("ubuntu-24.04", "Ubuntu", "3.9")]
     assert "name: Test (${{ matrix.platform }}, Python ${{ matrix.python }})" in JOBS["checks"]
     assert "name: Mod tests (${{ matrix.platform }})" in JOBS["mod-tests"]
     assert re.findall(r"- os: (\S+)\n\s+platform: (\S+)", JOBS["mod-tests"]) == [
