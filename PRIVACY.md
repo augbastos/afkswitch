@@ -70,7 +70,8 @@ drawing cache and never displays your
 context, and never writes state itself, reads transcripts, starts Python during
 render, polls or makes network requests. A click runs the bundled state helper once
 (`afk` or `back`, no context), which writes the state file exactly as `/afk` and `/back`
-do; it starts no model turn and sends no peer message.
+do. When that changed the state, it sends each live local session the same message the
+skill sends (no context), through the host's session messaging; host data handling applies.
 Codex and Antigravity hook files remain experimental and are not selected by default
 manifests; their live-host sync is not claimed.
 

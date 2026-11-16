@@ -193,16 +193,67 @@ async function refresh($: EngineInterface, cache: Cache): Promise<ReadStatus> {
 // The skills' helper stays the single writer; on Windows `python3` may be missing or the Store stub.
 const PYTHONS = [['python3'], ['python'], ['py', '-3']]
 
+type Saved = { changed: boolean; generation: number; reset: boolean; status: Status; context: string | null }
+
 // Runs the helper itself instead of queueing /afk or /back: a queued command waits until the
 // session is idle, so a click during a long turn would never take effect.
-async function save($: EngineInterface, status: Status): Promise<void> {
+async function save($: EngineInterface, status: Status): Promise<Saved | null> {
   const helper = `${$.plugin.root.replace(/[\\/]+$/, '')}/skills/afk/scripts/afkswitch_state.py`
   for (const python of PYTHONS) {
     try {
       const run = await $.process.run([...python, helper, status === 'afk' ? 'afk' : 'back'], { timeoutMs: 15000 })
-      if (run.stdout.includes('"ok"')) return  // the helper answered; the caller confirms on disk
-    } catch { /* not on PATH: try the next */ }
+      if (!run.stdout.includes('"ok"')) continue
+      // The helper answered; the caller still confirms on disk.
+      const out = JSON.parse(run.stdout) as Saved & { ok: boolean }
+      return out.ok ? out : null
+    } catch { /* not on PATH, or unreadable output: try the next */ }
   }
+  return null
+}
+
+// The same core event the presence hook injects (core_event in the helper).
+export function presenceEvent(saved: Saved): string {
+  const semantics = saved.status === 'afk'
+    ? 'The human is physically away and may still be reachable remotely. Presence changes no permissions; only /back ends AFK.'
+    : 'The human is physically present again. Presence changes no permissions.'
+  return `[AFKSwitch g${saved.generation}${saved.reset ? ' reset' : ''}]\nstatus: ${saved.status}\n` +
+    `context: ${saved.context ? JSON.stringify(saved.context) : 'none'}\n${semantics}`
+}
+
+const GONE = /^(?:offline|exited|ended|stale|unknown)?$/i
+
+// The skill's own guidance (keep working while away; present queued decisions on return),
+// read from the second text block of its references/message.md so there is one copy of it.
+// Without it the core event still goes out alone.
+async function guidance($: EngineInterface, saved: Saved, self: string | null): Promise<string> {
+  try {
+    const skill = saved.status === 'afk' ? 'afk' : 'back'
+    const text = await $.fs.read(`${$.plugin.root.replace(/[\\/]+$/, '')}/skills/${skill}/references/message.md`)
+    const block = [...text.replace(/\r\n/g, '\n').matchAll(/```text\n([\s\S]*?)```/g)][1]?.[1]
+    if (!block || (block.includes('<this session>') && !self)) return ''
+    return block.replaceAll('<G>', String(saved.generation)).replaceAll('<this session>', self ?? '').replace(/\n+$/, '')
+  } catch {
+    return ''
+  }
+}
+
+// Pushes the event to every live local session, as the /afk and /back skills do, with no
+// model turn here. Only local interactive sessions: never Remote Control, cloud, subagents
+// or teammates.
+async function notify($: EngineInterface, saved: Saved): Promise<void> {
+  const listed = await $.tool.call({ tool: 'ListAgents' })
+  if (listed.deny !== undefined || listed.isError) return
+  const rows = (listed.result.sections ?? []).flatMap(section => section.rows)
+  const peers = rows.filter(row => row.type === 'interactive' && row.name && !GONE.test(row.status ?? ''))
+  if (peers.length === 0) return
+  const self = /^This session is (.+?) \[/.exec(listed.result.listing ?? '')?.[1] ?? null
+  const more = await guidance($, saved, self)
+  const text = presenceEvent(saved) + (more ? `\n${more}` : '')
+  await Promise.all(peers.map(row => {
+    const twin = peers.filter(other => other.name === row.name).length > 1
+    const to = twin && row.ref ? `${row.name} [${row.ref}]` : row.name as string
+    return $.session.send({ to, text }).catch(() => undefined)  // one failed peer never stops the rest
+  }))
 }
 
 // A hook that throws is skipped by the engine and the chain continues without it.
@@ -280,8 +331,10 @@ export const register: Register = on => {
           cache.failed = true
           return
         }
-        await save($, intended)
+        const saved = await save($, intended)
         if (await refresh($, cache) !== intended) cache.failed = true
+        // Not awaited: the switch shows the saved state now; peers are told meanwhile.
+        else if (saved?.changed) void notify($, saved).catch(() => undefined)
       } catch {
         cache.failed = true
         // Show disk truth even if the write or its read-back failed.
