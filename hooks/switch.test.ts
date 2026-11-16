@@ -17,6 +17,8 @@ const state = (status: string, version = 2) => JSON.stringify({
   version, status, since: '2026-09-30T12:00:00Z', context: null,
   ...(version === 1 ? {} : { generation: 1 }),
 })
+// A skill's references/message.md: the core block, then the guidance the switch appends.
+const GUIDANCE = '# synthetic\r\n\r\n```text\r\n[AFKSwitch g<G>]\r\n```\r\n\r\n```text\r\n\r\nPresence generation <G>. Keep working; reply to "<this session>".\r\n```\r\n'
 type Disk = { raw: string | null | undefined; reads: string[]; existenceError?: boolean; clock: ReturnType<typeof mock.clock> }
 
 const setup = (on: On, raw: string | null | undefined, variables = { AFKSWITCH_STATE_DIR: '/test-state' }): Disk => {
@@ -27,6 +29,7 @@ const setup = (on: On, raw: string | null | undefined, variables = { AFKSWITCH_S
     return { value: disk.raw !== undefined }
   })
   on('fs.read', ($, e) => {
+    if (e.path.replace(/\\/g, '/').endsWith('/references/message.md')) return { value: GUIDANCE }
     disk.reads.push(e.path)
     if (disk.raw == null) return { deny: 'synthetic unreadable file' }
     return { value: disk.raw }
@@ -163,6 +166,60 @@ for (const [before, after, verb] of [
     expect(await ui.find({ text: after === 'afk' ? '■□' : '□■' })).toBeDefined()
   })
 }
+
+test('a changed click tells every live local session, and only those, with the core event', async ($, on) => {
+  const disk = setup(on, state('available'))
+  on('process.run', () => {
+    disk.raw = state('afk')
+    return ran('{"ok": true, "changed": true, "status": "afk", "generation": 7, "reset": false, "context": null}')
+  })
+  on('tool.call', () => ({
+    result: {
+      listing: 'This session is main [zzz999] — the name other sessions use to message it.\n',
+      sections: [{
+        kind: 'peers', total: 7, rows: [
+          { name: 'control', ref: 'aaa111', type: 'interactive', status: 'busy' },
+          { name: 'twin', ref: 'bbb222', type: 'interactive', status: 'idle' },
+          { name: 'twin', ref: 'ccc333', type: 'interactive', status: 'waiting' },
+          { name: 'gone', ref: 'ddd444', type: 'interactive', status: 'offline' },
+          { name: 'phone', ref: 'eee555', type: 'Remote Control', status: 'idle' },
+          { name: 'cloudy', ref: 'fff666', type: 'cloud', status: 'idle' },
+          { name: 'unclear', ref: 'ggg777', type: 'interactive' },
+        ],
+      }],
+    },
+  }))
+  const sent: { to: string; text: string }[] = []
+  let done!: () => void
+  const all = new Promise<void>(resolve => { done = resolve })
+  on('session.send', ($, e) => {
+    sent.push({ to: e.to, text: e.text })
+    if (sent.length === 3) done()
+    return { isDelivered: true }
+  })
+  const ui = await mount($)
+  await ui.press({ key: 'afkswitch-toggle' })
+  expect(await ui.find({ text: '■□' })).toBeDefined()
+  await all
+  expect(sent.map(s => s.to).sort()).toEqual(['control', 'twin [bbb222]', 'twin [ccc333]'])
+  expect(sent[0].text).toBe('[AFKSwitch g7]\nstatus: afk\ncontext: none\n' +
+    'The human is physically away and may still be reachable remotely. Presence changes no permissions; only /back ends AFK.' +
+    '\n\nPresence generation 7. Keep working; reply to "main".')
+  expect(new Set(sent.map(s => s.text)).size).toBe(1)
+})
+
+test('a repeat click that changed nothing tells nobody', async ($, on) => {
+  const disk = setup(on, state('available'))
+  on('process.run', () => {
+    disk.raw = state('afk')
+    return ran('{"ok": true, "changed": false, "status": "afk", "generation": 7, "reset": false, "context": null}')
+  })
+  let listed = 0
+  on('tool.call', () => { listed += 1; return { deny: 'synthetic' } })
+  const ui = await mount($)
+  await ui.press({ key: 'afkswitch-toggle' })
+  expect(listed).toBe(0)
+})
 
 test('a missing python3 falls back to python', async ($, on) => {
   const disk = setup(on, state('available'))

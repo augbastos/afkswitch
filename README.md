@@ -53,8 +53,8 @@ after `/back`, each session presents all queued decisions together as multiple-c
 questions, recommended option first, then resumes asking in real time.
 
 Click the terminal switch to save the same state without context. The click takes effect at
-once, even mid-turn, and starts no model turn; other sessions see it at their next tool call
-or prompt. Use `/afk` or `/back` when you also want a note or a push to idle sessions.
+once, even mid-turn, and tells every live local session right away with the same message
+`/afk` or `/back` sends. Use the slash commands when you also want a note.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/states-dark.png">
@@ -69,9 +69,12 @@ The switch is a Claude Code mod (`hooks/switch.tsx`). It does these things and n
   present, `back` when you are away) once, with `python3`, `python` or `py -3`, whichever
   starts first. It never runs anything without a click. A slash command would wait until
   the session is idle; the helper does not.
+- **One notice per live session, after a click that changed the state.** It lists sessions
+  with `ListAgents` and sends each live local interactive one (never Remote Control or cloud)
+  the message the `/afk` or `/back` skill sends, read from that skill's `references/message.md`.
+  It goes through the host's own session messaging, not the network.
 - **It reads `HOME` or `USERPROFILE`** only to find `~/.afkswitch/state.json`
-  (`AFKSWITCH_STATE_DIR` overrides the folder). These are folder paths, not credentials,
-  and the mod sends nothing anywhere.
+  (`AFKSWITCH_STATE_DIR` overrides the folder). These are folder paths, not credentials.
 - **Two short timers** blink and then hide the idle label; nothing polls.
 
 The three rules the plugin follows (one writer, explicit actions only, presence is not

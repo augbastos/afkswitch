@@ -37,7 +37,10 @@ file through `$.fs.read`. It never writes, creates or migrates that file itself,
 transcript, runs Python on render, starts a background process or uses the network.
 Unknown state is neutral. A click is explicit intent to run the bundled state helper
 once through `$.process.run` (no shell, fixed arguments `afk` or `back`, no context), so
-it takes effect even while a turn is running. Only that helper writes state. Pending actions cannot be pressed twice; failures display disk truth and
+it takes effect even while a turn is running. Only that helper writes state. After a
+change, the module lists sessions with the host's `ListAgents` tool and sends each live
+local interactive session the skill's fixed message through `$.session.send`; it grants
+nothing, and the receiving session's permission rules are untouched. Pending actions cannot be pressed twice; failures display disk truth and
 an error mark, never an assumed successful transition. Hook failures call `next(e)`.
 
 Transcript markers and opaque presence context are informational, not authorization or

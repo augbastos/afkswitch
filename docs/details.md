@@ -220,8 +220,10 @@ AFK runs it with `back`, without context, through `$.process.run` (`python3`, th
 target means nothing runs. An unknown fresh read takes no action. Earlier versions ran
 the slash command instead, which the host queues until the session is idle, so a click
 during a long turn sat on `saving…` until that turn ended. The helper takes effect at once
-and starts no model turn and sends no peer message: other sessions, and a turn already
-running here, learn at their next tool call or prompt. Only a state read after the helper
+and starts no model turn here. When the state changed, the switch lists sessions with
+`ListAgents` and sends each live local interactive one the skill's own message (the core
+event plus the guidance in `references/message.md`) through `$.session.send`; a turn
+already running here learns at its next tool call. Only a state read after the helper
 exits confirms the displayed status; if it does not, the switch shows the failure message
 until the next turn ends.
 

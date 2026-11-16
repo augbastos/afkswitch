@@ -59,10 +59,12 @@ truth and re-enable a known-state or missing-file button; never claim the intend
 
 Dispatch runs the bundled state helper directly (`$.process.run`, no shell, argument
 `afk` or `back`), not the slash command: a queued command waits until the session is
-idle, so a click during a long turn would never land. No model turn starts and no peer
-message is sent; sessions learn at their next lifecycle boundary, which in Claude Code
-includes each tool call. The module itself reads only the local state file and does not
-send network requests.
+idle, so a click during a long turn would never land. No model turn starts here. When the
+helper reports a change, the module applies the same peer rules as the skills (one
+`ListAgents`, live local interactive rows only, one send each) and sends the skill's
+message: the core event plus the guidance block of its `references/message.md`. A turn
+already running in this session learns at its next tool call. The module reads only the
+local state file and that message file, and does not send network requests.
 Builds without function hooks retain text commands. The switch is drawn
 on `terminal` and `desktop`; other surfaces pass through. Every hook error continues `next(e)`.
 
