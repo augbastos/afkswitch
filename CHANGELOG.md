@@ -4,6 +4,15 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-11-16
+
+### Changed
+
+- A click on the switch takes effect at once, even in the middle of a long turn. It runs the state helper itself instead of queueing `/afk` or `/back`, which waited until the session was idle and left the switch on `saving…`. A click starts no model turn and sends no peer message; use the slash commands for a note or a push to idle sessions.
+
+### Added
+
+- In Claude Code the presence hook also runs after each tool call (`PostToolUse`), so a turn already running learns of a click at its next tool call.
 ## [0.7.1] - 2026-11-11
 
 ### Changed

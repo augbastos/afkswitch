@@ -52,8 +52,9 @@ existing authorization. Independent authorized work continues. At the next natur
 after `/back`, each session presents all queued decisions together as multiple-choice
 questions, recommended option first, then resumes asking in real time.
 
-Click the terminal switch to run the same skills without context. Each invocation
-starts a model turn; the host's permissions and costs still apply.
+Click the terminal switch to save the same state without context. The click takes effect at
+once, even mid-turn, and starts no model turn; other sessions see it at their next tool call
+or prompt. Use `/afk` or `/back` when you also want a note or a push to idle sessions.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/states-dark.png">
@@ -64,10 +65,10 @@ starts a model turn; the host's permissions and costs still apply.
 
 The switch is a Claude Code mod (`hooks/switch.tsx`). It does these things and nothing else:
 
-- **One slash command per click.** A click runs `/afkswitch:afk` when you are present, or
-  `/afkswitch:back` when you are away, once. It never runs a command without a click.
-- **It listens to `command.run`** only to notice when that command of its own starts. It
-  passes every event on unchanged and does not see or change other commands.
+- **One state write per click.** A click runs the bundled state helper (`afk` when you are
+  present, `back` when you are away) once, with `python3`, `python` or `py -3`, whichever
+  starts first. It never runs anything without a click. A slash command would wait until
+  the session is idle; the helper does not.
 - **It reads `HOME` or `USERPROFILE`** only to find `~/.afkswitch/state.json`
   (`AFKSWITCH_STATE_DIR` overrides the folder). These are folder paths, not credentials,
   and the mod sends nothing anywhere.
@@ -196,7 +197,8 @@ transition fails and the file stays intact.
 AFKSwitch runs no server and makes no network requests of its own. Messages between
 sessions travel through the host's own mechanisms and are governed by the host.
 
-Read-only sync hooks inspect state and a bounded session transcript tail, then exit.
+Read-only sync hooks (session start, each prompt and, in Claude Code, each tool call)
+inspect state and a bounded session transcript tail, then exit.
 A third read-only hook declines Claude Code's approval prompts while you are away.
 The switch reads presence from state. While you are away it also matches your context
 against a short word list to draw a label such as `💤 sleeping` beside it; the text itself

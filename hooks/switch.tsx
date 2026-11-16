@@ -11,8 +11,6 @@ type Cache = {
   lastGood: ReadStatus
   readable: boolean
   pending: boolean
-  awaiting: Status | null
-  started: boolean
   failed: boolean
   revision: number
   context: string | null
@@ -181,12 +179,6 @@ async function refresh($: EngineInterface, cache: Cache): Promise<ReadStatus> {
       cache.initialized = true
       cache.readable = status !== null
       if (status !== null) cache.lastGood = status
-      if (cache.awaiting && status === cache.awaiting) {
-        cache.pending = false
-        cache.awaiting = null
-        cache.started = false
-        cache.failed = false
-      }
     }
     return status
   } catch (error) {
@@ -198,12 +190,26 @@ async function refresh($: EngineInterface, cache: Cache): Promise<ReadStatus> {
   }
 }
 
-// A drawing cache only: the helper used by the skills remains the single writer.
+// The skills' helper stays the single writer; on Windows `python3` may be missing or the Store stub.
+const PYTHONS = [['python3'], ['python'], ['py', '-3']]
+
+// Runs the helper itself instead of queueing /afk or /back: a queued command waits until the
+// session is idle, so a click during a long turn would never take effect.
+async function save($: EngineInterface, status: Status): Promise<void> {
+  const helper = `${$.plugin.root.replace(/[\\/]+$/, '')}/skills/afk/scripts/afkswitch_state.py`
+  for (const python of PYTHONS) {
+    try {
+      const run = await $.process.run([...python, helper, status === 'afk' ? 'afk' : 'back'], { timeoutMs: 15000 })
+      if (run.stdout.includes('"ok"')) return  // the helper answered; the caller confirms on disk
+    } catch { /* not on PATH: try the next */ }
+  }
+}
+
 // A hook that throws is skipped by the engine and the chain continues without it.
 export const register: Register = on => {
   const cache: Cache = {
     initialized: false, lastGood: null, readable: false,
-    pending: false, awaiting: null, started: false, failed: false, revision: 0,
+    pending: false, failed: false, revision: 0,
     context: null, ticks: 0, idle: null, timer: null, blinkOff: false, shown: false, arm: null,
   }
 
@@ -234,22 +240,9 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', ($, e, next) => {
-    if (cache.awaiting && e.origin?.kind === 'plugin' && e.origin.name === 'afkswitch' &&
-      (e.command === 'afkswitch:afk' || e.command === 'afkswitch:back')) cache.started = true
-    return next(e)
-  })
-
   on('turn.complete', async ($, e, next) => {
     await refresh($, cache)
-    if (cache.awaiting) {
-      if (cache.started) {
-        cache.pending = false
-        cache.awaiting = null
-        cache.started = false
-        cache.failed = true
-      }
-    } else cache.failed = false
+    cache.failed = false
     tick($, cache)
     $.ui.invalidate('ui.render')
     return next(e)
@@ -287,20 +280,14 @@ export const register: Register = on => {
           cache.failed = true
           return
         }
-        // Set before running: an idle session fires command.run inside this call.
-        cache.awaiting = intended
-        cache.started = false
-        intended === 'afk'
-          ? await $.command.run({ command: 'afkswitch:afk' })
-          : await $.command.run({ command: 'afkswitch:back' })
+        await save($, intended)
+        if (await refresh($, cache) !== intended) cache.failed = true
       } catch {
-        cache.awaiting = null
-        cache.started = false
         cache.failed = true
-        // Show disk truth even if command dispatch or completion failed.
+        // Show disk truth even if the write or its read-back failed.
         try { await refresh($, cache) } catch { cache.readable = false }
       } finally {
-        cache.pending = cache.awaiting !== null
+        cache.pending = false
         // A redraw error must not escape a button handler into the host.
         try { $.ui.invalidate('ui.render') } catch { /* text commands still work */ }
       }

@@ -40,7 +40,7 @@ A session that has not answered `/back` is *no reply yet* — never "done", "fai
 <!-- capabilities:details:start -->
 | Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
 |---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart, UserPromptSubmit and PostToolUse sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
 | Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
 | Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
 | Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
@@ -208,26 +208,22 @@ The cells distinguish presence without relying on color.
 
 The module reads presence from `~/.afkswitch/state.json` using `$.fs.read`, with
 `AFKSWITCH_STATE_DIR` taking priority over `HOME` or `USERPROFILE`. Only version 1/2 and
-valid fields confirm a presence state. It never writes, creates or migrates state, and never runs
+valid fields confirm a presence state. It never writes, creates or migrates state itself, and never runs
 Python to draw. Onboarding uses the host's store separately. Its module-local cache
 refreshes at `session.start`, first render after load, `prompt.submit`,
 `turn.complete`, and before dispatch. A bad
 read hides cached presence rather than implying available. No polling; the only timers are the two that blink and then hide an idle label, armed only while one shows.
 
-Clicking a displayed available state requests `$.command.run({ command:
-'afkswitch:afk' })`; displayed AFK requests `afkswitch:back`, without context or slash.
-Intent is captured when drawn; a fresh read that already has the target means no
-command is needed. An unknown fresh read takes no action. The host queues commands
-while busy without touching the typed draft. Each skill invokes a model turn and
-uses its normal helper, notification and return-status flow; host permissions, costs
-and data handling apply. Dispatch settling is not proof of a saved transition: only
-another state read confirms the displayed status, and turn completion refreshes again.
-
-The `command.run` hook only observes the start of the switch's own command: while an
-action is awaiting confirmation, it checks the plugin origin and command name, marks
-the command as started, and passes the event through unchanged. At `turn.complete`,
-if that command started but the refreshed state still does not confirm the requested
-transition, the switch clears the pending action and shows the failure message.
+Clicking a displayed available state runs the bundled state helper with `afk`; displayed
+AFK runs it with `back`, without context, through `$.process.run` (`python3`, then
+`python`, then `py -3`). Intent is captured when drawn; a fresh read that already has the
+target means nothing runs. An unknown fresh read takes no action. Earlier versions ran
+the slash command instead, which the host queues until the session is idle, so a click
+during a long turn sat on `saving…` until that turn ended. The helper takes effect at once
+and starts no model turn and sends no peer message: other sessions, and a turn already
+running here, learn at their next tool call or prompt. Only a state read after the helper
+exits confirms the displayed status; if it does not, the switch shows the failure message
+until the next turn ends.
 
 The API has no Button `disabled` prop. While pending, identical cells are drawn as
 Text instead of a Button, with an immediate guard against old-drawing double presses.

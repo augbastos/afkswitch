@@ -57,10 +57,12 @@ visible but cease to be a Button; an immediate guard also prevents a second pres
 from an older drawing. Unknown state has no active button. On failure, refresh disk
 truth and re-enable a known-state or missing-file button; never claim the intended state was saved.
 
-`$.command.run` uses the plugin skill's name without a slash. The host queues it until
-idle without changing the typed draft. The skill starts a model turn: its existing
-helper, notify and fan-in flow runs normally, including host costs and permissions.
-The module itself reads only the local state file and does not send network requests.
+Dispatch runs the bundled state helper directly (`$.process.run`, no shell, argument
+`afk` or `back`), not the slash command: a queued command waits until the session is
+idle, so a click during a long turn would never land. No model turn starts and no peer
+message is sent; sessions learn at their next lifecycle boundary, which in Claude Code
+includes each tool call. The module itself reads only the local state file and does not
+send network requests.
 Builds without function hooks retain text commands. The switch is drawn
 on `terminal` and `desktop`; other surfaces pass through. Every hook error continues `next(e)`.
 
@@ -296,7 +298,7 @@ one.
 ## Session-local awareness and sync
 
 Version 0.6 replaces the earlier "no hooks" constraint with two read-only lifecycle
-hooks: `SessionStart` and `UserPromptSubmit` in Claude Code (a third hook, described under
+hooks: `SessionStart`, `UserPromptSubmit` and `PostToolUse` in Claude Code (a fourth hook, described under
 [Approval prompts while AFK](#approval-prompts-while-afk), handles approval prompts). Experimental Codex files
 describe the same boundaries but are not wired into default manifests. Sessions started
 after `/afk`, or changed by another host, must learn the current presence. Each invocation
@@ -389,7 +391,7 @@ adapter is in [`adapters/README.md`](../adapters/README.md).
 <!-- capabilities:spec:start -->
 | Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
 |---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart and UserPromptSubmit sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart, UserPromptSubmit and PostToolUse sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
 | Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
 | Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
 | Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |

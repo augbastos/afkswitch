@@ -27,10 +27,10 @@ Setting `AFKSWITCH_HELPER` retains subprocess execution for alternative implemen
 
 On a Claude Code build with function hooks, run `claude plugin test .`. The testing kit
 mounts the terminal AbovePrompt tree and exercises its Button handlers with synthetic
-state, environment and command results; desktop draws the same tree and VS Code tests confirm pass-through. It covers
-known and unknown states, orange AFK, captured intent, double presses during queued
-dispatch, changes from another session, command failure and hook-error continuation.
-No real state is read or written, and no model command is run. This tests the module,
+state, environment and helper results; desktop draws the same tree and VS Code tests confirm pass-through. It covers
+known and unknown states, orange AFK, captured intent, double presses while the helper
+runs, the Python fallback, changes from another session, helper failure and hook-error
+continuation. No real state is read or written, and no helper or model command is run. This tests the module,
 not terminal font paint, marketplace installation or live skill resolution.
 
 ### Lifecycle hooks — `conformance/hooks/`
