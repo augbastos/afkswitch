@@ -111,6 +111,19 @@ def test_generation_dedup_and_return(files, monkeypatch, host, event, source, sh
     assert result["hookSpecificOutput"]["additionalContext"] == hook.load_helper().core_event("available", 7, None)
 
 
+def test_post_tool_use_tells_a_running_claude_turn_once(files, monkeypatch):
+    # The AFK button writes mid-turn; the next tool call carries the change, deduplicated like a prompt.
+    path, transcript = files
+    transcript.write_text(sync_record(5), encoding="utf-8")
+    state(path)
+    assert call(files, monkeypatch, "claude", "PostToolUse") is None
+    state(path, generation=6)
+    result = call(files, monkeypatch, "claude", "PostToolUse")
+    assert result["hookSpecificOutput"] == {"hookEventName": "PostToolUse",
+                                           "additionalContext": hook.load_helper().core_event("afk", 6, "work\n夜\t")}
+    assert call(files, monkeypatch, "codex", "PostToolUse") is None
+
+
 @pytest.mark.parametrize("host", ["claude", "codex"])
 def test_reset_is_applied_once_and_last_marker_wins(files, monkeypatch, host):
     path, transcript = files

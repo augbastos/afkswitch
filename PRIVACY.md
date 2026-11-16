@@ -36,7 +36,8 @@ applies, and outputs should be reviewed before sharing.
 
 Version 0.6 replaces the earlier "no hooks" constraint with two read-only lifecycle
 hooks, SessionStart and UserPromptSubmit, because sessions started after `/afk` and
-changes from another host need current presence. `scripts/presence_hook.py` reads
+changes from another host need current presence. In Claude Code the same hook also runs
+after each tool call (PostToolUse), so a turn already running learns of a switch click. `scripts/presence_hook.py` reads
 `~/.afkswitch/state.json` through the existing helper and the end of the session transcript (the last 256 KiB, widening to 4 MiB and at most 64 MiB
 only while no marker is found) to find its last AFKSwitch marker. It outputs only the universal
 presence event (status, generation, AFK context and presence semantics) in host context,
@@ -66,10 +67,10 @@ with no context at all a random idle label (such as "at the park") may show inst
 label is visible to anyone who sees your screen. The switch keeps the context text in memory
 in a session-local
 drawing cache and never displays your
-context, and never writes or migrates state, reads transcripts, starts Python during
-render, polls or makes network requests. A click runs the same `afkswitch:afk` or
-`afkswitch:back` skill with no context; it starts a model turn with the existing helper,
-host messaging and fan-in flow. These are host actions subject to host data handling.
+context, and never writes state itself, reads transcripts, starts Python during
+render, polls or makes network requests. A click runs the bundled state helper once
+(`afk` or `back`, no context), which writes the state file exactly as `/afk` and `/back`
+do; it starts no model turn and sends no peer message.
 Codex and Antigravity hook files remain experimental and are not selected by default
 manifests; their live-host sync is not claimed.
 

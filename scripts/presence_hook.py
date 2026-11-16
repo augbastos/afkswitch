@@ -114,7 +114,8 @@ def response(host: str, event: str, data: dict):
     if host == "claude" and event == "PermissionRequest":
         return decline_prompt(data)
     if host in ("claude", "codex"):
-        if event not in ("SessionStart", "UserPromptSubmit"):
+        # PostToolUse tells a turn already running, so a switch flipped mid-turn is seen at once.
+        if event not in ("SessionStart", "UserPromptSubmit") and not (host == "claude" and event == "PostToolUse"):
             return None
         if event == "SessionStart" and data.get("source") not in ("startup", "clear", "resume", "compact", "fork"):
             return None
