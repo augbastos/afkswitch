@@ -249,7 +249,7 @@ const message = (saved: Saved, more: string): string => presenceEvent(saved) + (
 // hands this session's model the same message the peers get. Neither waits for the turn
 // nor interrupts it; the appended row also carries the marker, so the hooks do not repeat it.
 async function announce($: EngineInterface, saved: Saved): Promise<void> {
-  $.ui.log(`/afkswitch:${saved.status === 'afk' ? 'afk' : 'back'} · ${saved.status === 'afk' ? 'away' : 'back'} · g${saved.generation}`)
+  $.ui.log(`/afkswitch:${saved.status === 'afk' ? 'afk' : 'back'}`)
   const text = message(saved, await guidance($, saved, null))
   await $.session.append({ message: { type: 'user', content: [{ type: 'text', text }] } })
 }

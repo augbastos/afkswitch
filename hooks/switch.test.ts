@@ -219,7 +219,7 @@ test('a changed click tells every live local session, and only those, with the c
   // This session: a visible marker like the slash command's row, and the model gets the
   // same message minus the status request, which it has no one to send to.
   expect(await appended).toBe(core)
-  expect(logged).toEqual(['/afkswitch:afk · away · g7'])
+  expect(logged).toEqual(['/afkswitch:afk'])
 })
 
 test('a repeat click that changed nothing tells nobody', async ($, on) => {
