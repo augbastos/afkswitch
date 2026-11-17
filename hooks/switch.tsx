@@ -47,7 +47,7 @@ const RARE_CHANCE = 0.05
 // Exported for the tests, which pass fixed numbers in place of the two dice.
 export const pickIdle = (pool = Math.random(), which = Math.random()): string => {
   const from = pool < RARE_CHANCE ? RARE : IDLE
-  return from[Math.floor(which * from.length)]
+  return from[Math.floor(which * from.length)] ?? from[0] ?? ''
 }
 const IDLE_EVERY = 3
 const IDLE_MS = 8000
@@ -60,7 +60,7 @@ function kindOf(context: string | null): string | null {
   // Only the opening words of the note name the person's own absence; a note that goes on to
   // describe the agent's work ("finishing the sleep-tracker refactor") must not label it.
   // Hyphenated compounds never count.
-  const lead = context.split(/[,.;:!?\n]/)[0].trim().split(/\s+/).slice(0, 4).join(' ').replace(/\S*-\S*/g, '_')
+  const lead = (context.split(/[,.;:!?\n]/)[0] ?? '').trim().split(/\s+/).slice(0, 4).join(' ').replace(/\S*-\S*/g, '_')
   let best: string | null = null
   let at = Infinity
   for (const [words, label] of KINDS) {
@@ -131,7 +131,7 @@ function validSince(value: unknown): boolean {
   const year = Number(y), month = Number(m), day = Number(d)
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
   const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-  return year >= 1 && month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1] &&
+  return year >= 1 && month >= 1 && month <= 12 && day >= 1 && day <= (days[month - 1] ?? 0) &&
     Number(hour) < 24 && Number(minute) < 60 && Number(s) < 60 &&
     (zone === 'Z' || Number(oh) * 60 + Number(om) < 1440)
 }
@@ -245,7 +245,7 @@ async function guidance($: EngineInterface, saved: Saved, self: string | null): 
     if (!block) return ''
     const filled = block.replaceAll('<G>', String(saved.generation))
     return (self === null
-      ? filled.split('\nAt your next natural pause, reply to')[0]
+      ? (filled.split('\nAt your next natural pause, reply to')[0] ?? filled)
       : filled.replaceAll('<this session>', self)).replace(/\n+$/, '')
   } catch {
     return ''

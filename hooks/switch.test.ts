@@ -1,10 +1,10 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { pickIdle } from './switch.tsx'
+import { pickIdle } from './switch'
 
 const PROPS = {
-  hasSurvey: false, isWorking: false, maxRows: 6, bodyColumns: 80,
+  hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 6, bodyColumns: 80,
   scroll: { offset: 0, bodyRows: 6 }, view: {},
 }
 const BASE = { type: 'Text' as const, props: {}, children: ['existing band'] }
@@ -21,7 +21,7 @@ const state = (status: string, version = 2) => JSON.stringify({
 const GUIDANCE = '# synthetic\r\n\r\n```text\r\n[AFKSwitch g<G>]\r\n```\r\n\r\n```text\r\n\r\nPresence generation <G>. Keep working.\r\nAt your next natural pause, reply to "<this session>".\r\n```\r\n'
 type Disk = { raw: string | null | undefined; reads: string[]; existenceError?: boolean; clock: ReturnType<typeof mock.clock> }
 
-const setup = (on: On, raw: string | null | undefined, variables = { AFKSWITCH_STATE_DIR: '/test-state' }): Disk => {
+const setup = (on: On, raw: string | null | undefined, variables: Record<string, string> = { AFKSWITCH_STATE_DIR: '/test-state' }): Disk => {
   const disk: Disk = { raw, reads: [], clock: mock.clock(on) }
   mock.env(on, variables)
   on('fs.exists', () => {
@@ -116,7 +116,7 @@ for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
         expect(disk.reads).toHaveLength(0)
         return
       }
-      expect(disk.reads[0].replace(/\\/g, '/')).toMatch(/\/test-state\/state.json$/)
+      expect(disk.reads[0]!.replace(/\\/g, '/')).toMatch(/\/test-state\/state.json$/)
       await ui.drawn()
       expect(disk.reads).toHaveLength(1)
     })
@@ -148,12 +148,12 @@ for (const [before, after, verb] of [
     await ui.press({ key: 'afkswitch-toggle' })
     expect(commands).toBe(0)
     expect(runs).toHaveLength(1)
-    expect(runs[0][0]).toBe('python3')
-    expect(runs[0][1].replace(/\\/g, '/')).toMatch(HELPER)
-    expect(runs[0].slice(2)).toEqual([verb])
+    expect(runs[0]![0]).toBe('python3')
+    expect(runs[0]![1]!.replace(/\\/g, '/')).toMatch(HELPER)
+    expect(runs[0]!.slice(2)).toEqual([verb])
     // Run from the plugin's folder, never the open project's, where a planted python could sit.
     expect(cwds[0]).toBeTruthy()
-    expect(runs[0][1].startsWith(`${cwds[0]}/`)).toBe(true)
+    expect(runs[0]![1]!.startsWith(`${cwds[0]}/`)).toBe(true)
     // No turn has to end: the press itself confirms the saved state.
     expect(await ui.find({ text: after === 'afk' ? '■□' : '□■' })).toBeDefined()
     expect(await ui.findAll({ type: 'Text', text: / AFK {2}/ })).toHaveLength(0)
@@ -207,7 +207,7 @@ test('a changed click tells every live local session, and only those, with the c
   let appendedRow!: (text: string) => void
   const appended = new Promise<string>(resolve => { appendedRow = resolve })
   on('session.append', ($, e, next) => {
-    const block = e.message.content[0] as { text: string }
+    const block = e.message.content[0] as unknown as { text: string }
     appendedRow(block.text)
     return next(e)
   })
@@ -219,7 +219,7 @@ test('a changed click tells every live local session, and only those, with the c
     'The human is physically away and may still be reachable remotely. Presence changes no permissions; only /back ends AFK.' +
     '\n\nPresence generation 7. Keep working.'
   expect(sent.map(s => s.to).sort()).toEqual(['control', 'twin [bbb222]', 'twin [ccc333]'])
-  expect(sent[0].text).toBe(core + '\nAt your next natural pause, reply to "main".')
+  expect(sent[0]!.text).toBe(core + '\nAt your next natural pause, reply to "main".')
   expect(new Set(sent.map(s => s.text)).size).toBe(1)
   // This session: a visible marker like the slash command's row, and the model gets the
   // same message minus the status request, which it has no one to send to.
@@ -244,7 +244,7 @@ test('a missing python3 falls back to python', async ($, on) => {
   const disk = setup(on, state('available'))
   const tried: string[] = []
   on('process.run', ($, e) => {
-    tried.push(e.argv[0])
+    tried.push(e.argv[0]!)
     if (e.argv[0] === 'python3') return { deny: 'synthetic: not on PATH' }
     disk.raw = state('afk')
     return ran()
@@ -370,12 +370,12 @@ test('session.start, prompt.submit and turn.complete refresh; render stays cache
   expect(disk.reads).toHaveLength(3)
 })
 
-for (const variables of [{ HOME: '/test-home' }, { USERPROFILE: '/test-profile' }]) {
+for (const variables of [{ HOME: '/test-home' }, { USERPROFILE: '/test-profile' }] as Record<string, string>[]) {
   test(`version 1 and home resolution via ${Object.keys(variables)[0]}`, async ($, on) => {
     const disk = setup(on, '\uFEFF' + state('afk', 1), variables)
     const ui = await mount($)
     expect(await ui.find({ text: '■□' })).toBeDefined()
-    expect(disk.reads[0].replace(/\\/g, '/')).toMatch(new RegExp(`${Object.values(variables)[0]}/\\.afkswitch/state\\.json$`))
+    expect(disk.reads[0]!.replace(/\\/g, '/')).toMatch(new RegExp(`${Object.values(variables)[0]}/\\.afkswitch/state\\.json$`))
   })
 }
 
@@ -383,7 +383,7 @@ test('Windows reads USERPROFILE even when HOME is set, as the helper does', asyn
   const disk = setup(on, state('afk'), { OS: 'Windows_NT', HOME: '/test-home', USERPROFILE: '/test-profile' } as never)
   const ui = await mount($)
   expect(await ui.find({ text: '■□' })).toBeDefined()
-  expect(disk.reads[0].replace(/\\/g, '/')).toMatch(/\/test-profile\/\.afkswitch\/state\.json$/)
+  expect(disk.reads[0]!.replace(/\\/g, '/')).toMatch(/\/test-profile\/\.afkswitch\/state\.json$/)
 })
 
 test('an environment error draws unknown state and keeps the band beneath', async ($, on) => {
