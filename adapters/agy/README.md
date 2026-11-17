@@ -1,7 +1,8 @@
 # Antigravity CLI adapter
 
-Experimental static layout for Antigravity CLI 1.2.13; not verified in a live host,
-no default hook wiring and no installer. For a separately reviewed host experiment, copy these public
+Experimental static layout for Antigravity CLI 1.2.13; not verified in a live host and not
+wired by default. `python scripts/install.py --host agy` copies it for you (see
+[the installer](../../docs/details.md#installer)). To do it by hand, copy these public
 files into the global plugin directory `~/.gemini/config/plugins/afkswitch`:
 
 ```text

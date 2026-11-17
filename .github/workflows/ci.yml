@@ -157,30 +157,36 @@ jobs:
           $foreign = Join-Path $HOME '.claude/skills/afk'
           New-Item -ItemType Directory -Force -Path $foreign | Out-Null
           Set-Content (Join-Path $foreign 'SKILL.md') 'another skill'
-          $refused = $false
-          try { ./install.ps1 } catch { $refused = $true }
-          if (-not $refused) { throw 'installer overwrote a foreign skill' }
-          ./install.ps1 -Uninstall
+          python scripts/install.py --yes --host claude
+          if ($LASTEXITCODE -ne 1) { throw 'installer did not refuse a foreign skill' }
+          python scripts/install.py --yes --uninstall --host claude
           if ((Get-Content (Join-Path $foreign 'SKILL.md') -Raw).Trim() -ne 'another skill') { throw 'foreign skill changed or deleted' }
           Remove-Item $foreign -Recurse -Force
-      - name: Install personal skills
-        shell: pwsh
-        run: ./install.ps1
-      - name: Verify installed skills and helper
+      - name: Install for Claude Code and Codex
         shell: pwsh
         run: |
-          $skills = Join-Path $HOME '.claude/skills'
-          foreach ($f in 'afk/SKILL.md', 'back/SKILL.md', 'afk/scripts/afkswitch_state.py', 'back/scripts/afkswitch_state.py') {
-            if (-not (Test-Path (Join-Path $skills $f))) { throw "$f not installed" }
+          python scripts/install.py --yes --host claude,codex
+          if ($LASTEXITCODE -ne 0) { throw "install failed: $LASTEXITCODE" }
+      - name: Verify skills, hooks, the command and the helper
+        shell: pwsh
+        run: |
+          foreach ($f in '.claude/skills/afk/SKILL.md', '.agents/skills/back/scripts/afkswitch_state.py', '.codex/hooks.json') {
+            if (-not (Test-Path (Join-Path $HOME $f))) { throw "$f not installed" }
           }
           $env:AFKSWITCH_STATE_DIR = Join-Path $env:RUNNER_TEMP 'afkswitch-state'
-          $afk = python (Join-Path $skills 'afk/scripts/afkswitch_state.py') afk --context 'smoke test' | ConvertFrom-Json
-          $back = python (Join-Path $skills 'back/scripts/afkswitch_state.py') back | ConvertFrom-Json
+          $cli = Join-Path $env:LOCALAPPDATA 'AFKSwitch/bin/afkswitch.cmd'
+          $afk = & $cli afk --context 'smoke test' | ConvertFrom-Json
+          $back = & $cli back | ConvertFrom-Json
           if (-not $afk.ok -or $afk.status -ne 'afk') { throw "afk failed: $afk" }
           if (-not $back.ok -or $back.status -ne 'available' -or $back.generation -ne 2) { throw "back failed: $back" }
+          $hook = '{"source": "startup"}' | python (Join-Path $env:LOCALAPPDATA 'AFKSwitch/scripts/presence_hook.py') --host codex --event SessionStart
+          if ($LASTEXITCODE -ne 0) { throw 'installed hook failed' }
       - name: Uninstall
         shell: pwsh
-        run: ./install.ps1 -Uninstall
+        run: |
+          python scripts/install.py --yes --uninstall
+          if ($LASTEXITCODE -ne 0) { throw "uninstall failed: $LASTEXITCODE" }
+          if (Test-Path (Join-Path $env:LOCALAPPDATA 'AFKSwitch')) { throw 'app folder left behind' }
 
   ci-passed:
     name: CI passed

@@ -32,8 +32,17 @@ declined. It leaves the prompt alone only for the state helper's own run (a Pyth
 interpreter, the helper, then `afk`, `back` or `read`, with nothing chained before or after
 it outside quoted text; a command that merely mentions the helper is declined) and when
 `AFKSWITCH_KEEP_PROMPTS` is `1`, `true` or `yes`. Errors exit 0 with no output; a broken hook cannot block the host,
-but may leave session awareness stale. Codex and Antigravity hook files are experimental,
-not selected by default manifests and not verified in a live host.
+but may leave session awareness stale. The same script serves Codex, Hermes Agent, Cursor,
+GitHub Copilot CLI and Antigravity with each host's own output shape; none of those is
+selected by a default manifest or verified in a live host.
+
+`scripts/install.py` is the only part that edits other programs' files, and only after
+showing a diff and getting a yes (or `--yes`). It parses JSON and refuses files it cannot
+parse, writes YAML and TOML only inside its own marked block and refuses when the same key
+exists outside it, backs each existing file up first, and writes atomically. Hook commands
+name an absolute interpreter and the installed copy, which lives outside the state folder:
+an agent allowed to write presence (for example Codex with `--codex-writable-state`) can
+change who is away, never the code the hooks run. It uses no network.
 
 The optional Claude Code terminal function-hooks module reads the local state file and
 the skills' own `references/message.md` through `$.fs.read`. It never writes, creates or

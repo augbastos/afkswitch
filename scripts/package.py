@@ -19,13 +19,17 @@ include_files = [
     ".codex-plugin/plugin.json",
     ".claude-plugin/plugin.json",
     "scripts/presence_hook.py",
+    # The installer wires every detected agent from the downloaded copy; the command works anywhere.
+    "scripts/install.py",
+    "scripts/afkswitch.py",
     "LICENSE",
     "PRIVACY.md",
     "SECURITY.md",
     "TERMS.md",
     "SUPPORT.md",
 ]
-include_dirs = ["skills", "assets", "hooks", "adapters/agy"]
+include_dirs = ["skills", "assets", "hooks", "adapters/agy", "adapters/cursor", "adapters/copilot",
+                "adapters/hermes", "adapters/generic"]
 
 # Each skill is independently usable; reject an accidental return-helper drift.
 helpers = [ROOT / "skills" / name / "scripts" / "afkswitch_state.py" for name in ("afk", "back")]

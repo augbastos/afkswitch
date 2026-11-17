@@ -239,8 +239,13 @@ for host in capabilities["hosts"]:
     expected_surfaces = ["terminal", "desktop"] if host["id"] == "claude-code" else []
     if host["visualSwitch"] != bool(expected_surfaces) or host.get("visualSwitchSurfaces") != expected_surfaces:
         fail(f"{host['id']}: visualSwitch is terminal and desktop in Claude Code only")
-    if host["id"] in {"codex", "agy"} and host["sync"]:
-        fail(f"{host['id']}: experimental hooks do not claim live-host sync")
+    if type(host.get("liveVerified")) is not bool:
+        fail(f"{host['id']}: liveVerified must be a boolean")
+    # A host's hooks claim sync only after a dated live check (docs/compatibility.md).
+    if host["id"] in {"codex", "agy", "hermes", "cursor", "copilot"} and host["sync"]:
+        fail(f"{host['id']}: hooks without a live check do not claim sync")
+    if host["sync"] and host["id"] not in {"claude-code", "generic-local"} and not host["liveVerified"]:
+        fail(f"{host['id']}: sync needs liveVerified")
 
 
 def host_label(host: dict) -> str:
@@ -250,11 +255,11 @@ def host_label(host: dict) -> str:
 def render(style: str) -> str:
     if style not in ("details", "spec", "adapters"):
         fail(f"unknown capabilities style {style!r}")
-    headers = ["Host", "State", "Sync", "Notify", "Fan-in", "Visual switch", "Notes", "Evidence"]
+    headers = ["Host", "State", "Sync", "Notify", "Fan-in", "Visual switch", "Live-verified", "Notes", "Evidence"]
     lines = ["| " + " | ".join(headers) + " |", "|" + "|".join("---" for _ in headers) + "|"]
     for host in capabilities["hosts"]:
         cells = [host_label(host)]
-        cells += ["yes" if host[key] else "no" for key in CAPABILITY_KEYS]
+        cells += ["yes" if host[key] else "no" for key in (*CAPABILITY_KEYS, "liveVerified")]
         cells += [host["notes"], host["evidence"]]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
@@ -301,7 +306,7 @@ for rel in tracked:
         fail(f"personal path in {rel}")
 
 # Legacy product surface stays out of current docs and skills (CHANGELOG keeps history).
-current = ["README.md", "install.ps1", "spec/presence.md", *map(str, skill_root.rglob("*.md"))]
+current = ["README.md", "scripts/install.py", "spec/presence.md", *map(str, skill_root.rglob("*.md"))]
 for path in current:
     text = (ROOT / path).read_text(encoding="utf-8")
     for legacy in ["~/.claude/session-presence", "/broadcast", "/live"]:
@@ -323,10 +328,18 @@ required = [
     "adapters/agy/README.md", "adapters/agy/plugin.json", "adapters/agy/hooks.json",
     "conformance/hooks/test_hooks.py",
     "evals/README.md", "evals/run.py", "evals/scenarios.json",
+    "scripts/install.py", "scripts/afkswitch.py", "conformance/install/test_install.py", "conformance/cli/test_cli.py",
+    "adapters/cursor/hooks.json", "adapters/copilot/afkswitch.json", "adapters/hermes/hooks.yaml",
 ]
 for path in required:
     if not (ROOT / path).is_file():
         fail(f"required file missing: {path}")
+# The installer, the command and the hook stay local: no network code.
+for path in ("scripts/install.py", "scripts/afkswitch.py", "scripts/presence_hook.py",
+             "adapters/generic/presence_sync.py"):
+    if (ROOT / path).is_file() and re.search(r"\b(?:socket|urllib|http\.client|requests)\b",
+                                             (ROOT / path).read_text(encoding="utf-8")):
+        fail(f"{path} must not use network modules")
 
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 if "## What AFKSwitch reads, writes, and sends" not in readme:
@@ -358,6 +371,8 @@ for name in ["SECURITY.md", "skills/afk/SKILL.md", "skills/back/SKILL.md", "skil
              "skills/afk/scripts/afkswitch_state.py", "skills/back/scripts/afkswitch_state.py",
              "scripts/presence_hook.py", "hooks/hooks.json", "hooks/codex.json", "hooks/switch.tsx",
              ".claude-plugin/plugin.json", "adapters/agy/README.md", "adapters/agy/plugin.json", "adapters/agy/hooks.json",
+             "scripts/install.py", "scripts/afkswitch.py", "adapters/generic/presence_sync.py",
+             "adapters/cursor/hooks.json", "adapters/copilot/afkswitch.json", "adapters/hermes/hooks.yaml",
              *(image.removeprefix("./") for image in images)]:
     if name not in names:
         fail(f"plugin archive is missing {name}")

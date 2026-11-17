@@ -79,6 +79,12 @@ to this session's own conversation; host data handling applies.
 Codex and Antigravity hook files remain experimental and are not selected by default
 manifests; their live-host sync is not claimed.
 
+The installer (`scripts/install.py`) reads the configuration folders of the agents it
+supports to see which you have, copies AFKSwitch to a folder of its own and, after you
+approve a diff, adds its hook entries to those agents' config files. It keeps a backup of
+each file it changes and a list of its edits next to the copy, so it can remove them
+again. It sends nothing anywhere.
+
 ## Future changes
 
 If a future adapter introduces network services, telemetry, authentication, or externally

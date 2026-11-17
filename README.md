@@ -16,7 +16,9 @@ to collect status where the host supports it. Presence is not permission.
 
 ## Status
 
-Full support in Claude Code; Codex and Antigravity are state-only.
+Full support in Claude Code. Codex, Hermes Agent, Cursor, GitHub Copilot CLI and
+Antigravity hear your presence through hooks the [installer](#every-agent-on-this-machine)
+wires; those hooks are tested with synthetic input, not yet in each live host.
 See [compatibility](#compatibility-at-a-glance).
 
 ### Compatibility at a glance
@@ -26,12 +28,15 @@ Capabilities from [the adapter matrix](adapters/capabilities.json):
 | Host | State | Sync | Notify peers | Collect return status | Visual switch |
 |---|---|---|---|---|---|
 | Claude Code | yes | yes | yes | yes | terminal and desktop app, with modules |
-| Codex | yes | no | no | no | no |
-| Antigravity CLI | yes | no | no | no | no |
-| Generic local agent | yes | before each turn, if the host calls the helper | no | no | no |
+| Codex | yes | each prompt and tool call, via hooks (not live-verified) | no | no | no |
+| Hermes Agent | yes | each model call while away, via a hook (not live-verified) | no | no | no |
+| Cursor | yes | new sessions while away, via a hook (not live-verified) | no | no | no |
+| GitHub Copilot CLI | yes | new sessions while away, via a hook (not live-verified) | no | no | no |
+| Antigravity CLI | yes | each model call while away, via a hook (not live-verified) | no | no | no |
+| Generic local agent (Ollama and others) | yes | before each turn, if the host calls the helper | no | no | no |
 
-**Codex and Antigravity are state-only.** Their experimental hook files have no
-default wiring or verified live-host sync. See [Codex installation](#codex) and
+**Only Claude Code tells running sessions at once.** Every other agent learns at its next
+hook, and none of their hooks is verified in a live host yet. See
 [tested versions and limits](docs/compatibility.md).
 
 ## What it does
@@ -114,15 +119,28 @@ git clone https://github.com/augbastos/afkswitch.git
 claude --plugin-dir ./afkswitch
 ```
 
-### Personal skills without the plugin
+### Every agent on this machine
 
-To get bare `/afk` and `/back` in every Claude Code session, copy the two skills into
-`~/.claude/skills` (PowerShell 7). This does not install the switch.
+From a clone or the downloaded plugin folder (Python 3.9+), one command finds the agents
+you have and wires each one to the same presence. It shows every change first, backs up
+each file it edits and asks before writing.
 
 ```text
-pwsh -File install.ps1              # install or update
-pwsh -File install.ps1 -Uninstall   # remove
+python scripts/install.py --dry-run      # show what would change
+python scripts/install.py                # review the changes, then confirm
+python scripts/install.py --host claude  # only some agents
+python scripts/install.py --uninstall    # remove everything it added
 ```
+
+It also installs the `afkswitch` command, for any terminal or an OS keyboard shortcut:
+
+```text
+afkswitch afk [--context TEXT]   # away
+afkswitch back                   # here again
+afkswitch status                 # one line: AFK since 14:02 (2h 5m) · "sleep" · g31
+```
+
+[Installer details](docs/details.md#installer), per agent and on removal.
 
 ### Codex
 
@@ -131,13 +149,10 @@ codex plugin marketplace add https://github.com/augbastos/afkswitch
 codex plugin add afkswitch@afkswitch
 ```
 
-Use `$afkswitch:afk` and `$afkswitch:back`. The state folder must be writable;
-see [Codex sandbox setup](docs/details.md#codex-sandbox).
-
-### Antigravity
-
-There is no installer. The adapter is an experimental static layout that is not verified
-in a live host; see [the Antigravity adapter](adapters/agy/README.md).
+Use `$afkswitch:afk` and `$afkswitch:back`. The plugin adds no hooks; the
+[installer](#every-agent-on-this-machine) does. Codex's default sandbox keeps the skills
+from writing the state folder: use the `afkswitch` command, or see
+[Codex sandbox setup](docs/details.md#codex-sandbox).
 
 ## Try it in 30 seconds
 
@@ -210,6 +225,10 @@ The switch reads presence from state. While you are away it also matches your co
 against a short word list to draw a label such as `💤 sleeping` beside it; the text itself
 is never drawn. There is no daemon, polling, account, or telemetry.
 Claude Code peer messages can include your optional context; host data handling applies.
+
+The installer writes only after showing you every change: it copies AFKSwitch to a folder
+of its own, adds its hook entries to each chosen agent's config file (backing the file up
+first) and records what it did so `--uninstall` removes exactly that.
 
 Read the [Privacy policy](PRIVACY.md) and [Security policy](SECURITY.md).
 

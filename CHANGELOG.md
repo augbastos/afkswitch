@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-11-17
+
+### Added
+
+- `python scripts/install.py` wires every agent it finds to the one presence file: Claude Code, Codex, Hermes Agent, Cursor, GitHub Copilot CLI and Antigravity CLI, and prints the call a local-model agent (Ollama and others) makes before each turn. It shows a diff for every file and asks before writing, keeps the file's own formatting, backs files up, refuses anything it cannot parse safely, and `--uninstall` removes exactly what it added. It replaces `install.ps1`.
+- The `afkswitch afk|back|status` command, for any terminal or an OS keyboard shortcut.
+- Hook support for Hermes Agent (`pre_llm_call`, every model call while away), Cursor and GitHub Copilot CLI (`sessionStart`), and `PostToolUse` for Codex. None is live-verified yet; the matrix gains a Live-verified column and a host claims sync only after a dated live check.
+
 ## [0.8.2] - 2026-11-17
 
 ### Changed

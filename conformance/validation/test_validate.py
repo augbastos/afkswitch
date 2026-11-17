@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
     ("table", "docs/details.md is out of date with adapters/capabilities.json"),
     ("module", "Claude hook manifest must combine command hooks with ./switch.tsx"),
     ("codex-hooks", "default non-Claude manifests must not wire experimental hooks"),
-    ("experimental-sync", "experimental hooks do not claim live-host sync"),
+    ("experimental-sync", "hooks without a live check do not claim sync"),
     ("visual-surfaces", "visualSwitch is terminal and desktop in Claude Code only"),
 ])
 def test_validator_rejects_drift_in_an_isolated_copy(tmp_path, mutation, message):
