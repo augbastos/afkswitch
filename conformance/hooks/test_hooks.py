@@ -132,7 +132,55 @@ def test_post_tool_use_tells_a_running_claude_turn_once(files, monkeypatch):
     result = call(files, monkeypatch, "claude", "PostToolUse")
     assert result["hookSpecificOutput"] == {"hookEventName": "PostToolUse",
                                            "additionalContext": hook.load_helper().core_event("afk", 6, "work\n夜\t") + hook.guidance("afk", 6)}
-    assert call(files, monkeypatch, "codex", "PostToolUse") is None
+    # Codex keeps a transcript too, so it is told the same way.
+    assert call(files, monkeypatch, "codex", "PostToolUse") == result
+
+
+EXPECTED_SHAPE = {
+    "hermes": lambda text: {"context": text},
+    "agy": lambda text: {"injectSteps": [{"ephemeralMessage": text}]},
+    "cursor": lambda text: {"additional_context": text},
+    "copilot": lambda text: {"additionalContext": text},
+}
+
+
+@pytest.mark.parametrize("host,event", [("hermes", "pre_llm_call"), ("agy", "PreInvocation")])
+def test_ephemeral_hosts_hear_the_short_event_on_every_call_while_away(files, monkeypatch, host, event):
+    # Nothing they are told is kept, so it repeats each call; the 1 KB guidance would repeat too.
+    state(files[0], generation=7)
+    event_text = hook.load_helper().core_event("afk", 7, "work\n夜\t")
+    for _ in range(2):
+        assert call(files, monkeypatch, host, event, raw="{}") == EXPECTED_SHAPE[host](event_text)
+    state(files[0], "available", 8)
+    assert call(files, monkeypatch, host, event, raw="{}") is None
+
+
+@pytest.mark.parametrize("host", ["cursor", "copilot"])
+def test_start_only_hosts_hear_away_with_guidance_when_a_session_starts(files, monkeypatch, host):
+    state(files[0], generation=7)
+    text = hook.load_helper().core_event("afk", 7, "work\n夜\t") + hook.guidance("afk", 7)
+    assert call(files, monkeypatch, host, "sessionStart", raw="{}") == EXPECTED_SHAPE[host](text)
+    state(files[0], "available", 8)
+    assert call(files, monkeypatch, host, "sessionStart", raw="{}") is None
+    # Later events are not wired until a live test shows their transcript keeps the marker.
+    state(files[0], generation=9, since=datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+    assert call(files, monkeypatch, host, "postToolUse", raw="{}") is None
+
+
+@pytest.mark.parametrize("host,event", [("hermes", "pre_llm_call"), ("cursor", "sessionStart"), ("copilot", "sessionStart")])
+@pytest.mark.parametrize("raw", ["", "not json", "[]"])
+def test_hosts_that_need_no_payload_still_answer_with_an_odd_one(files, monkeypatch, host, event, raw):
+    # Their payload fields are not confirmed live; none of them is read.
+    state(files[0], generation=7)
+    assert call(files, monkeypatch, host, event, raw=raw) is not None
+
+
+@pytest.mark.parametrize("host,event", [("hermes", "PreToolUse"), ("cursor", "beforeSubmitPrompt"),
+                                        ("copilot", "userPromptSubmitted"), ("unknown", "SessionStart"),
+                                        ("codex", "PermissionRequest")])
+def test_unwired_hosts_and_events_say_nothing(files, monkeypatch, host, event):
+    state(files[0], generation=7)
+    assert call(files, monkeypatch, host, event, raw="{}") is None
 
 
 def test_post_tool_use_skips_the_transcript_when_the_change_is_old(files, monkeypatch):

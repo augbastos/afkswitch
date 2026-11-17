@@ -162,18 +162,53 @@ def decline_prompt(data: dict):
                                    "decision": {"behavior": "deny", "message": DECLINED, "interrupt": False}}}
 
 
-def response(host: str, event: str, data: dict):
-    if not isinstance(data, dict):
-        return None
+# How a host learns presence, per event:
+#   transcript - the host keeps a transcript: tell once per generation, found by its marker
+#                (and return to "available" is told too).
+#   start      - a new session: tell only while away; nothing to remember.
+#   ephemeral  - the text is not kept between calls: tell on every call while away, the short
+#                event only (the guidance is about 1 KB and would repeat on every model call).
+# SessionStart (claude, codex) is "start" for a fresh session and "transcript" for one that
+# continues an old conversation (resume, compact, fork).
+TRANSCRIPT, START, EPHEMERAL, BY_SOURCE = "transcript", "start", "ephemeral", "by-source"
+_CLAUDE_STYLE = {"SessionStart": BY_SOURCE, "UserPromptSubmit": TRANSCRIPT, "PostToolUse": TRANSCRIPT}
+HOSTS = {
+    "claude": _CLAUDE_STYLE,
+    "codex": _CLAUDE_STYLE,
+    "agy": {"PreInvocation": EPHEMERAL},
+    "hermes": {"pre_llm_call": EPHEMERAL},
+    # Cursor and Copilot stay start-only until a live test shows the marker lands in their
+    # transcript; without it, every later event would repeat the notice.
+    "cursor": {"sessionStart": START},
+    "copilot": {"sessionStart": START},
+}
+
+
+def output(host: str, event: str, text: str) -> dict:
+    """Each host's own way to add context, as its hook docs define it."""
+    if host == "agy":
+        return {"injectSteps": [{"ephemeralMessage": text}]}
+    if host == "hermes":
+        return {"context": text}
+    if host == "cursor":
+        return {"additional_context": text}
+    if host == "copilot":
+        return {"additionalContext": text}
+    return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": text}}
+
+
+def response(host: str, event: str, data):
     if host == "claude" and event == "PermissionRequest":
-        return decline_prompt(data)
-    if host in ("claude", "codex"):
-        # PostToolUse tells a turn already running, so a switch flipped mid-turn is seen at once.
-        if event not in ("SessionStart", "UserPromptSubmit") and not (host == "claude" and event == "PostToolUse"):
+        return decline_prompt(data) if isinstance(data, dict) else None
+    mode = HOSTS.get(host, {}).get(event)
+    if mode is None:
+        return None
+    if mode == BY_SOURCE:
+        source = data.get("source") if isinstance(data, dict) else None
+        mode = START if source in ("startup", "clear") else TRANSCRIPT if source in ("resume", "compact", "fork") else None
+        if mode is None:
             return None
-        if event == "SessionStart" and data.get("source") not in ("startup", "clear", "resume", "compact", "fork"):
-            return None
-    elif host != "agy" or event != "PreInvocation":
+    if mode == TRANSCRIPT and not isinstance(data, dict):
         return None
     helper = load_helper()
     prior = helper.load(helper.state_dir() / "state.json")
@@ -183,25 +218,19 @@ def response(host: str, event: str, data: dict):
     generation = state["generation"]
     if event == "PostToolUse" and not recent(helper, state["since"]):
         return None  # an older change already reached this session at a prompt or start
-    reset = False
-    if host == "agy":
-        if state["status"] != "afk":
-            return None
-        reset = prior.kind == "v1"
-    elif event == "SessionStart" and data.get("source") in ("startup", "clear"):
-        if state["status"] != "afk":
-            return None
-        reset = prior.kind == "v1"
-    else:
+    if mode == TRANSCRIPT:
         seen, seen_reset = last_marker(data.get("transcript_path"))
         reset = generation < seen or (prior.kind == "v1" and not (seen == generation and seen_reset))
         if generation <= seen and not reset:
             return None
+    else:
+        if state["status"] != "afk":
+            return None
+        reset = prior.kind == "v1"
     text = helper.core_event(state["status"], generation, state["context"], reset)
-    if host == "agy":
-        return {"injectSteps": [{"ephemeralMessage": text}]}
-    text += guidance(state["status"], generation)
-    return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": text}}
+    if mode != EPHEMERAL:
+        text += guidance(state["status"], generation)
+    return output(host, event, text)
 
 
 def main(argv=None) -> int:
@@ -211,7 +240,10 @@ def main(argv=None) -> int:
             return 0
         if sys.version_info < (3, 9):
             return 0
-        data = json.load(sys.stdin)
+        try:
+            data = json.load(sys.stdin)
+        except ValueError:
+            data = None  # start and ephemeral hosts need no payload; the others then do nothing
         result = response(args[1], args[3], data)
         if result is not None:
             sys.stdout.write(json.dumps(result, ensure_ascii=True) + "\n")
