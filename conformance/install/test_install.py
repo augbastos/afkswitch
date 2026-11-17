@@ -254,7 +254,8 @@ def test_home_with_a_space_and_installed_cli_runs(env, monkeypatch):
     assert run(env, "--yes", "--host", "claude", home=spaced) == 0
     app = inst.app_dir(spaced)
     cmd = json.loads((spaced / ".claude/settings.json").read_text())["hooks"]["SessionStart"][0]["hooks"][0]["command"]
-    assert "app dir" in cmd
+    # macOS ignores both variables (Library/Application Support), so check the real folder.
+    assert " " in inst.posix(app) and inst.posix(app) in cmd
     child = {**os.environ, "AFKSWITCH_STATE_DIR": str(env / "state"), "PYTHONDONTWRITEBYTECODE": "1"}
     done = subprocess.run([sys.executable, str(app / "scripts/afkswitch.py"), "status"],
                           capture_output=True, text=True, env=child, timeout=60)
