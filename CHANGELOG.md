@@ -4,6 +4,17 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-11-17
+
+### Changed
+
+- While a click saves, the switch's cells flash in place instead of showing `saving…`, so the box keeps its shape and nothing around it is cut off.
+- A click marks the change in this session's transcript again (`/afkswitch:afk` or `/afkswitch:back`) the moment it lands, without waiting for or stopping the running turn.
+
+### Fixed
+
+- Sessions kept waiting for you while away: the session where you clicked, and sessions told by the hooks, got only the short presence event. They now also get the skill's guidance (keep working on everything already authorized; queue only what needs you), the same text `/afk` sends.
+
 ## [0.8.1] - 2026-11-16
 
 ### Fixed

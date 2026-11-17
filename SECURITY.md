@@ -21,7 +21,8 @@ earlier "no hooks" constraint with two read-only lifecycle hooks, `SessionStart`
 `UserPromptSubmit`, so sessions opened after `/afk` and changes from other hosts are
 reconciled; in Claude Code it also runs on `PostToolUse`, so a running turn sees a click. They run `scripts/presence_hook.py`, read `~/.afkswitch/state.json` through
 that helper and the end of the session transcript (the last 256 KiB, widening to 4 MiB and at most 64 MiB only while no marker is found) for the last AFKSwitch
-marker, and output the universal presence event as host context only when needed.
+marker, and output the universal presence event, plus the skill's fixed guidance text,
+as host context only when needed.
 Antigravity's PreInvocation variant reads state only and emits an ephemeral AFK event.
 These hooks never write state or transcripts, change permissions, poll, run in the
 background or use the network. In Claude Code a third read-only hook, `PermissionRequest`,

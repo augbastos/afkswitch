@@ -33,8 +33,9 @@ and is gone 8 seconds later; its emoji blinks for the first 3 seconds, the only 
 in the switch. Context with no known word gets no label. No label is drawn while a
 press is pending or has failed.
 
-A pending action adds dim `saving…`;
-a failed action adds orange `not switched — try /afk or /back`.
+While an action is pending the cells flash between the two states in place, with the
+same label and width as the button; a failed action adds orange
+`not switched — try /afk or /back`.
 
 Only a read of version 1 or 2 with status `afk` or `available` confirms the drawing.
 Missing, unreadable, malformed or future files never imply available. The module

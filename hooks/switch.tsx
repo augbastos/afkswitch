@@ -11,6 +11,7 @@ type Cache = {
   lastGood: ReadStatus
   readable: boolean
   pending: boolean
+  flash: boolean  // while pending, the cells alternate on this beat
   failed: boolean
   revision: number
   context: string | null
@@ -52,6 +53,7 @@ const IDLE_EVERY = 3
 const IDLE_MS = 8000
 const BLINK_MS = 600
 const BLINK_FOR_MS = 3000  // then the label holds still until IDLE_MS
+const FLASH_MS = 250  // the cells' beat while a click is saving
 
 function kindOf(context: string | null): string | null {
   if (context === null) return null
@@ -224,17 +226,32 @@ const GONE = /^(?:offline|exited|ended|stale|unknown)?$/i
 
 // The skill's own guidance (keep working while away; present queued decisions on return),
 // read from the second text block of its references/message.md so there is one copy of it.
-// Without it the core event still goes out alone.
+// `self` names this session for the /back status request; null means the text is for this
+// session itself, which has no one to report to. Without the file the core event goes alone.
 async function guidance($: EngineInterface, saved: Saved, self: string | null): Promise<string> {
   try {
     const skill = saved.status === 'afk' ? 'afk' : 'back'
     const text = await $.fs.read(`${$.plugin.root.replace(/[\\/]+$/, '')}/skills/${skill}/references/message.md`)
     const block = [...text.replace(/\r\n/g, '\n').matchAll(/```text\n([\s\S]*?)```/g)][1]?.[1]
-    if (!block || (block.includes('<this session>') && !self)) return ''
-    return block.replaceAll('<G>', String(saved.generation)).replaceAll('<this session>', self ?? '').replace(/\n+$/, '')
+    if (!block) return ''
+    const filled = block.replaceAll('<G>', String(saved.generation))
+    return (self === null
+      ? filled.split('\nAt your next natural pause, reply to')[0]
+      : filled.replaceAll('<this session>', self)).replace(/\n+$/, '')
   } catch {
     return ''
   }
+}
+
+const message = (saved: Saved, more: string): string => presenceEvent(saved) + (more ? `\n${more}` : '')
+
+// Marks the switch in this session's transcript, as the slash command's own row did, and
+// hands this session's model the same message the peers get. Neither waits for the turn
+// nor interrupts it; the appended row also carries the marker, so the hooks do not repeat it.
+async function announce($: EngineInterface, saved: Saved): Promise<void> {
+  $.ui.log(`/afkswitch:${saved.status === 'afk' ? 'afk' : 'back'} · ${saved.status === 'afk' ? 'away' : 'back'} · g${saved.generation}`)
+  const text = message(saved, await guidance($, saved, null))
+  await $.session.append({ message: { type: 'user', content: [{ type: 'text', text }] } })
 }
 
 // Pushes the event to every live local session, as the /afk and /back skills do, with no
@@ -246,9 +263,8 @@ async function notify($: EngineInterface, saved: Saved): Promise<void> {
   const rows = (listed.result.sections ?? []).flatMap(section => section.rows)
   const peers = rows.filter(row => row.type === 'interactive' && row.name && !GONE.test(row.status ?? ''))
   if (peers.length === 0) return
-  const self = /^This session is (.+?) \[/.exec(listed.result.listing ?? '')?.[1] ?? null
-  const more = await guidance($, saved, self)
-  const text = presenceEvent(saved) + (more ? `\n${more}` : '')
+  const self = /^This session is (.+?) \[/.exec(listed.result.listing ?? '')?.[1] ?? 'the session that sent this'
+  const text = message(saved, await guidance($, saved, self))
   await Promise.all(peers.map(row => {
     const twin = peers.filter(other => other.name === row.name).length > 1
     const to = twin && row.ref ? `${row.name} [${row.ref}]` : row.name as string
@@ -260,7 +276,7 @@ async function notify($: EngineInterface, saved: Saved): Promise<void> {
 export const register: Register = on => {
   const cache: Cache = {
     initialized: false, lastGood: null, readable: false,
-    pending: false, failed: false, revision: 0,
+    pending: false, flash: false, failed: false, revision: 0,
     context: null, ticks: 0, idle: null, timer: null, blinkOff: false, shown: false, arm: null,
   }
 
@@ -322,6 +338,13 @@ export const register: Register = on => {
       showOnboarding = false
       cache.pending = true
       cache.failed = false
+      let blink: { cancel(): void } | null = null
+      try {
+        blink = $.clock.every(FLASH_MS, () => {
+          cache.flash = !cache.flash
+          $.ui.invalidate('ui.render')
+        })
+      } catch { /* no clock: the cells hold still while saving */ }
       try {
         $.ui.invalidate('ui.render')
         const current = await refresh($, cache)
@@ -333,13 +356,18 @@ export const register: Register = on => {
         }
         const saved = await save($, intended)
         if (await refresh($, cache) !== intended) cache.failed = true
-        // Not awaited: the switch shows the saved state now; peers are told meanwhile.
-        else if (saved?.changed) void notify($, saved).catch(() => undefined)
+        else if (saved?.changed) {
+          // Not awaited: the switch shows the saved state now; the rest follows meanwhile.
+          void announce($, saved).catch(() => undefined)
+          void notify($, saved).catch(() => undefined)
+        }
       } catch {
         cache.failed = true
         // Show disk truth even if the write or its read-back failed.
         try { await refresh($, cache) } catch { cache.readable = false }
       } finally {
+        blink?.cancel()
+        cache.flash = false
         cache.pending = false
         // A redraw error must not escape a button handler into the host.
         try { $.ui.invalidate('ui.render') } catch { /* text commands still work */ }
@@ -357,16 +385,19 @@ export const register: Register = on => {
           flexDirection="row"
           borderStyle="single"
           borderColor={status === 'afk' ? '#F28C28' : undefined}
-          paddingX={cache.pending || intended === null ? 1 : 0}
+          paddingX={!cache.pending && intended === null ? 1 : 0}
           flexShrink={0}
         >
-          {cache.pending || intended === null
-            ? <Text color={status === 'afk' ? '#F28C28' : undefined} dimColor={status !== 'afk'}>AFK</Text>
-            : <Button key="afkswitch-toggle" label={` AFK  ${cells} `} plain dimColor={status !== 'afk'} onPress={press} />}
-          {cache.pending || intended === null ? <Text>{'  '}</Text> : null}
-          {cache.pending || intended === null ? <Text dimColor={status !== 'afk'}>{cells}</Text> : null}
-          {cache.pending || cache.failed ? <Text>{' '}</Text> : null}
-          {cache.pending ? <Text dimColor>saving…</Text> : null}
+          {/* While saving, the same label as the button with its cells flashing between
+              the two states: same width, so nothing around it moves. */}
+          {cache.pending
+            ? <Text key="afkswitch-saving" dimColor={status !== 'afk'}>{` AFK  ${cache.flash ? (cells === '■□' ? '□■' : '■□') : cells} `}</Text>
+            : intended === null
+              ? <Text color={status === 'afk' ? '#F28C28' : undefined} dimColor={status !== 'afk'}>AFK</Text>
+              : <Button key="afkswitch-toggle" label={` AFK  ${cells} `} plain dimColor={status !== 'afk'} onPress={press} />}
+          {!cache.pending && intended === null ? <Text>{'  '}</Text> : null}
+          {!cache.pending && intended === null ? <Text dimColor={status !== 'afk'}>{cells}</Text> : null}
+          {cache.failed ? <Text>{' '}</Text> : null}
           {cache.failed ? <Text color="#F28C28">not switched — try /afk or /back</Text> : null}
         </Box>
         {indicator ? <Text key="afkswitch-indicator" dimColor>{` ${indicator}`}</Text> : null}

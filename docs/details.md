@@ -196,7 +196,8 @@ emoji blinks for the first 3 seconds; kind labels never blink. The idle labels a
 such as `🛸 abducted, back soon`.
 Your text itself is never drawn. Anyone who sees your screen sees the label.
 
-One-time onboarding lines explain the switch; `saving…` marks a pending action and
+One-time onboarding lines explain the switch; while an action is pending its cells
+flash between the two states (same label, same width, nothing around it moves), and
 `not switched — try /afk or /back` marks a failed or unconfirmed action.
 Before first use, a definitely missing state file gives
 the same neutral cells a button that starts AFK. Unreadable or invalid state is not
@@ -222,8 +223,10 @@ the slash command instead, which the host queues until the session is idle, so a
 during a long turn sat on `saving…` until that turn ended. The helper takes effect at once
 and starts no model turn here. When the state changed, the switch lists sessions with
 `ListAgents` and sends each live local interactive one the skill's own message (the core
-event plus the guidance in `references/message.md`) through `$.session.send`; a turn
-already running here learns at its next tool call. Only a state read after the helper
+event plus the guidance in `references/message.md`) through `$.session.send`. In this
+session it writes a dim `/afkswitch:afk` or `/afkswitch:back` line in the transcript, as
+the command's own row used to mark it, and appends the same message (without the `/back`
+status request) as a row the model reads at its next step, without stopping the turn. Only a state read after the helper
 exits confirms the displayed status; if it does not, the switch shows the failure message
 until the next turn ends.
 

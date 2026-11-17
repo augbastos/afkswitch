@@ -81,6 +81,25 @@ def last_marker(path):
     return (int(last.group(1)), bool(last.group(2))) if last else (0, False)
 
 
+GUIDANCE = re.compile(r"```text\n(.*?)```", re.S)
+
+
+def guidance(status: str, generation: int) -> str:
+    """The skill's own guidance block (keep working while away; present queued decisions on
+    return), so a session learning by hook is told what a pushed message tells it. The /back
+    status request is left out: a hook has no one to report to. Any problem: no guidance."""
+    try:
+        skill = "afk" if status == "afk" else "back"
+        text = (HELPER_PATH.parents[2] / skill / "references/message.md").read_text("utf-8")
+        blocks = GUIDANCE.findall(text.replace("\r\n", "\n"))
+        if len(blocks) < 2:
+            return ""
+        block = blocks[1].replace("<G>", str(generation)).split("\nAt your next natural pause, reply to")[0]
+        return "\n" + block.rstrip("\n")
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
 DECLINED = ("AFKSwitch: the human is away, so nobody can answer this approval prompt. It was declined "
             "instead of leaving the session waiting. Do not retry it and do not look for another way to "
             "do the same thing. Record this step as deferred for the human and continue with work that "
@@ -144,6 +163,7 @@ def response(host: str, event: str, data: dict):
     text = helper.core_event(state["status"], generation, state["context"], reset)
     if host == "agy":
         return {"injectSteps": [{"ephemeralMessage": text}]}
+    text += guidance(state["status"], generation)
     return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": text}}
 
 

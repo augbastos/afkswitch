@@ -41,7 +41,8 @@ after each tool call (PostToolUse), so a turn already running learns of a switch
 `~/.afkswitch/state.json` through the existing helper and the end of the session transcript (the last 256 KiB, widening to 4 MiB and at most 64 MiB
 only while no marker is found) to find its last AFKSwitch marker. It outputs only the universal
 presence event (status, generation, AFK context and presence semantics) in host context,
-never transcript contents. Antigravity's PreInvocation variant reads no transcript and
+followed in Claude Code and Codex by the skill's fixed guidance text from its
+`references/message.md`, never transcript contents. Antigravity's PreInvocation variant reads no transcript and
 outputs an ephemeral AFK event only. These lifecycle hooks never write state or transcripts,
 change permissions, poll, run in the background or use the network. Any error exits 0 without
 output; missing, invalid and future state versions also produce nothing. No database
@@ -71,7 +72,8 @@ context, and never writes state itself, reads transcripts, starts Python during
 render, polls or makes network requests. A click runs the bundled state helper once
 (`afk` or `back`, no context), which writes the state file exactly as `/afk` and `/back`
 do. When that changed the state, it sends each live local session the same message the
-skill sends (no context), through the host's session messaging; host data handling applies.
+skill sends (no context), through the host's session messaging, and appends that message
+to this session's own conversation; host data handling applies.
 Codex and Antigravity hook files remain experimental and are not selected by default
 manifests; their live-host sync is not claimed.
 

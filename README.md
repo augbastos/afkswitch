@@ -73,6 +73,9 @@ The switch is a Claude Code mod (`hooks/switch.tsx`). It does these things and n
   with `ListAgents` and sends each live local interactive one (never Remote Control or cloud)
   the message the `/afk` or `/back` skill sends, read from that skill's `references/message.md`.
   It goes through the host's own session messaging, not the network.
+- **One line in this session's transcript per changed click**, `/afkswitch:afk` or
+  `/afkswitch:back`, and the same message for this session's model, so the turn already
+  running keeps going with the AFK guidance instead of waiting for you.
 - **It reads `HOME` or `USERPROFILE`** only to find `~/.afkswitch/state.json`
   (`AFKSWITCH_STATE_DIR` overrides the folder). These are folder paths, not credentials.
 - **Two short timers** blink and then hide the idle label; nothing polls.

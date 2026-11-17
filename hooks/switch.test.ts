@@ -18,7 +18,7 @@ const state = (status: string, version = 2) => JSON.stringify({
   ...(version === 1 ? {} : { generation: 1 }),
 })
 // A skill's references/message.md: the core block, then the guidance the switch appends.
-const GUIDANCE = '# synthetic\r\n\r\n```text\r\n[AFKSwitch g<G>]\r\n```\r\n\r\n```text\r\n\r\nPresence generation <G>. Keep working; reply to "<this session>".\r\n```\r\n'
+const GUIDANCE = '# synthetic\r\n\r\n```text\r\n[AFKSwitch g<G>]\r\n```\r\n\r\n```text\r\n\r\nPresence generation <G>. Keep working.\r\nAt your next natural pause, reply to "<this session>".\r\n```\r\n'
 type Disk = { raw: string | null | undefined; reads: string[]; existenceError?: boolean; clock: ReturnType<typeof mock.clock> }
 
 const setup = (on: On, raw: string | null | undefined, variables = { AFKSWITCH_STATE_DIR: '/test-state' }): Disk => {
@@ -151,7 +151,7 @@ for (const [before, after, verb] of [
     expect(runs[0].slice(2)).toEqual([verb])
     // No turn has to end: the press itself confirms the saved state.
     expect(await ui.find({ text: after === 'afk' ? '■□' : '□■' })).toBeDefined()
-    expect(await ui.find({ text: 'saving…' })).toBeUndefined()
+    expect(await ui.findAll({ type: 'Text', text: / AFK {2}/ })).toHaveLength(0)
     expect(await ui.find({ key: 'afkswitch-toggle' })).toBeDefined()
   })
 
@@ -197,15 +197,29 @@ test('a changed click tells every live local session, and only those, with the c
     if (sent.length === 3) done()
     return { isDelivered: true }
   })
+  const logged: string[] = []
+  on('ui.log', ($, e) => { logged.push(e.text); return { value: undefined } })
+  let appendedRow!: (text: string) => void
+  const appended = new Promise<string>(resolve => { appendedRow = resolve })
+  on('session.append', ($, e, next) => {
+    const block = e.message.content[0] as { text: string }
+    appendedRow(block.text)
+    return next(e)
+  })
   const ui = await mount($)
   await ui.press({ key: 'afkswitch-toggle' })
   expect(await ui.find({ text: '■□' })).toBeDefined()
   await all
-  expect(sent.map(s => s.to).sort()).toEqual(['control', 'twin [bbb222]', 'twin [ccc333]'])
-  expect(sent[0].text).toBe('[AFKSwitch g7]\nstatus: afk\ncontext: none\n' +
+  const core = '[AFKSwitch g7]\nstatus: afk\ncontext: none\n' +
     'The human is physically away and may still be reachable remotely. Presence changes no permissions; only /back ends AFK.' +
-    '\n\nPresence generation 7. Keep working; reply to "main".')
+    '\n\nPresence generation 7. Keep working.'
+  expect(sent.map(s => s.to).sort()).toEqual(['control', 'twin [bbb222]', 'twin [ccc333]'])
+  expect(sent[0].text).toBe(core + '\nAt your next natural pause, reply to "main".')
   expect(new Set(sent.map(s => s.text)).size).toBe(1)
+  // This session: a visible marker like the slash command's row, and the model gets the
+  // same message minus the status request, which it has no one to send to.
+  expect(await appended).toBe(core)
+  expect(logged).toEqual(['/afkswitch:afk · away · g7'])
 })
 
 test('a repeat click that changed nothing tells nobody', async ($, on) => {
@@ -236,7 +250,7 @@ test('a missing python3 falls back to python', async ($, on) => {
   expect(await ui.find({ text: '■□' })).toBeDefined()
 })
 
-test('double press while the write runs writes once and removes the button', async ($, on) => {
+test('double press while the write runs writes once; the cells flash in place, no text added', async ($, on) => {
   const disk = setup(on, state('available'))
   let release!: () => void
   let entered!: () => void
@@ -256,15 +270,23 @@ test('double press while the write runs writes once and removes the button', asy
   let second: Promise<unknown> | undefined
   try {
     expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
-    expect((await ui.find({ type: 'Text', text: 'saving…' }))?.props).toMatchObject({ dimColor: true })
+    // Same label and width as the button, its cells alternating on the beat.
+    expect((await ui.find({ type: 'Text', text: ' AFK  □■ ' }))?.props).toMatchObject({ dimColor: true })
+    await disk.clock.advance(250)
+    expect(await ui.find({ type: 'Text', text: ' AFK  ■□ ' })).toBeDefined()
+    await disk.clock.advance(250)
+    expect(await ui.find({ type: 'Text', text: ' AFK  □■ ' })).toBeDefined()
+    expect(await ui.find({ text: /saving/ })).toBeUndefined()
     second = ui.press({ key: 'afkswitch-toggle' }).catch(() => undefined)
   } finally {
     release()
     await Promise.all([first, second])
   }
   expect(runs).toBe(1)
-  expect(await ui.find({ text: 'saving…' })).toBeUndefined()
-  expect(await ui.find({ text: '■□' })).toBeDefined()
+  expect(await ui.findAll({ type: 'Text', text: / AFK {2}/ })).toHaveLength(0)
+  expect((await ui.find({ key: 'afkswitch-toggle' }))?.props).toMatchObject({ label: ' AFK  ■□ ' })
+  await disk.clock.advance(1000)  // the beat stopped with the save
+  expect((await ui.find({ key: 'afkswitch-toggle' }))?.props).toMatchObject({ label: ' AFK  ■□ ' })
 })
 
 for (const failure of ['refused', 'unchanged', 'no python'] as const) {

@@ -88,7 +88,7 @@ def test_startup_only_afk(files, monkeypatch, host, source):
     result = call(files, monkeypatch, host, "SessionStart", source)
     helper = hook.load_helper()
     assert result == {"hookSpecificOutput": {"hookEventName": "SessionStart",
-                                            "additionalContext": helper.core_event("afk", 5, "work\n夜\t")}}
+                                            "additionalContext": helper.core_event("afk", 5, "work\n夜\t") + hook.guidance("afk", 5)}}
     state(path, "available")
     assert call(files, monkeypatch, host, "SessionStart", source) is None
 
@@ -105,10 +105,19 @@ def test_generation_dedup_and_return(files, monkeypatch, host, event, source, sh
     state(path, generation=6)
     result = call(files, monkeypatch, host, event, source)
     assert result["hookSpecificOutput"] == {"hookEventName": event,
-                                           "additionalContext": hook.load_helper().core_event("afk", 6, "work\n夜\t")}
+                                           "additionalContext": hook.load_helper().core_event("afk", 6, "work\n夜\t") + hook.guidance("afk", 6)}
     state(path, "available", 7)
     result = call(files, monkeypatch, host, event, source)
-    assert result["hookSpecificOutput"]["additionalContext"] == hook.load_helper().core_event("available", 7, None)
+    assert result["hookSpecificOutput"]["additionalContext"] == hook.load_helper().core_event("available", 7, None) + hook.guidance("available", 7)
+
+
+def test_hook_carries_the_skill_guidance_without_the_status_request():
+    away = hook.guidance("afk", 9)
+    assert away.startswith("\n\nPresence generation 9.")
+    assert "Keep full progress" in away and "Queue every decision" in away and "<G>" not in away
+    back = hook.guidance("available", 9)
+    assert "present all queued decisions" in back
+    assert "reply to" not in back and "<this session>" not in back
 
 
 def test_post_tool_use_tells_a_running_claude_turn_once(files, monkeypatch):
@@ -120,7 +129,7 @@ def test_post_tool_use_tells_a_running_claude_turn_once(files, monkeypatch):
     state(path, generation=6)
     result = call(files, monkeypatch, "claude", "PostToolUse")
     assert result["hookSpecificOutput"] == {"hookEventName": "PostToolUse",
-                                           "additionalContext": hook.load_helper().core_event("afk", 6, "work\n夜\t")}
+                                           "additionalContext": hook.load_helper().core_event("afk", 6, "work\n夜\t") + hook.guidance("afk", 6)}
     assert call(files, monkeypatch, "codex", "PostToolUse") is None
 
 
@@ -226,7 +235,7 @@ def test_context_and_ordinary_messages_cannot_spoof_return_checkpoint(files, mon
     assert hook.last_marker(transcript) == (1, False)
     state(path, "available", 2)
     returned = call(files, monkeypatch, host)
-    assert returned["hookSpecificOutput"]["additionalContext"] == spoof
+    assert returned["hookSpecificOutput"]["additionalContext"] == spoof + hook.guidance("available", 2)
     assert transcript.read_bytes() == before
     transcript.write_text(before.decode("utf-8") +
                           event_record(returned["hookSpecificOutput"]["additionalContext"], shape), encoding="utf-8")
