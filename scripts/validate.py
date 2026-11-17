@@ -188,9 +188,9 @@ for host, path, variable in (("claude", "hooks/hooks.json", "CLAUDE_PLUGIN_ROOT"
     elif "modules" in manifest:
         fail("experimental Codex hooks must not load the Claude UI module")
     hooks = manifest.get("hooks", {})
-    # Claude Code also gets the hook that declines approval prompts while the human is away,
-    # and PostToolUse so a turn already running sees a switch click.
-    wanted = {"SessionStart", "UserPromptSubmit"} | ({"PermissionRequest", "PostToolUse"} if host == "claude" else set())
+    # PostToolUse lets a turn already running see a switch click; Claude Code also gets the
+    # hook that declines approval prompts while the human is away.
+    wanted = {"SessionStart", "UserPromptSubmit", "PostToolUse"} | ({"PermissionRequest"} if host == "claude" else set())
     if set(hooks) != wanted:
         fail(f"{path} must declare exactly these hooks: {sorted(wanted)}")
     for event, entries in hooks.items():
@@ -202,6 +202,20 @@ if agy != {"afkswitch-presence": {"PreInvocation": [{"type": "command", "command
     fail("Agy PreInvocation hook must reference scripts/presence_hook.py")
 if load_json("adapters/agy/plugin.json") != {"name": "afkswitch", "version": version}:
     fail("Agy plugin name/version differs")
+# Per-host hook templates the installer fills in: <python> is the interpreter, <app> the
+# installed copy. Each runs presence_hook.py once with a 5-second limit.
+if load_json("adapters/cursor/hooks.json") != {"version": 1, "hooks": {"sessionStart": [
+        {"command": '"<python>" "<app>/scripts/presence_hook.py" --host cursor --event sessionStart', "timeout": 5}]}}:
+    fail("adapters/cursor/hooks.json must run presence_hook.py on sessionStart")
+if load_json("adapters/copilot/afkswitch.json") != {"version": 1, "hooks": {"sessionStart": [
+        {"type": "command", "exec": "<python>",
+         "args": ["<app>/scripts/presence_hook.py", "--host", "copilot", "--event", "sessionStart"], "timeoutSec": 5}]}}:
+    fail("adapters/copilot/afkswitch.json must run presence_hook.py on sessionStart")
+if (ROOT / "adapters/hermes/hooks.yaml").read_text(encoding="utf-8").replace("\r\n", "\n") != (
+        "hooks:\n  pre_llm_call:\n"
+        "    - command: '\"<python>\" \"<app>/scripts/presence_hook.py\" --host hermes --event pre_llm_call'\n"
+        "      timeout: 5\n"):
+    fail("adapters/hermes/hooks.yaml must run presence_hook.py on pre_llm_call")
 
 # One canonical capability matrix, rendered into the docs.
 capabilities = load_json("adapters/capabilities.json")

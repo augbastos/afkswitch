@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {"type": "command", "exec": "<python>", "args": ["<app>/scripts/presence_hook.py", "--host", "copilot", "--event", "sessionStart"], "timeoutSec": 5}
+    ]
+  }
+}
