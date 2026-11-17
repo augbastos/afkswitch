@@ -172,10 +172,11 @@ Click it, or focus it with `ctrl+x tab` and press Enter.
 The button label carries no context. `AFK  □□` is neutral unknown state.
 
 While you are away, a dim label may follow the box, outside its border. It names
-the kind of absence when your `/afk` text has a known word or phrase. It is a plain keyword
-hit, not understanding: it does not know "not", and when several kinds match, the one that
-comes first in your text wins. The lists are narrow on purpose, because a note is often about
-the agent's work ("keep working", "cron job"), not about you:
+the kind of absence when your `/afk` text opens with a known word or phrase: only the first
+four words before any comma or full stop count, and a hyphenated word never does. It is a
+plain keyword hit, not understanding: it does not know "not", and when several kinds match,
+the one that comes first wins. The lists are narrow on purpose, because a note is often about
+the agent's work ("keep working", "finishing the sleep-tracker refactor"), not about you:
 
 | Label | Words and phrases |
 |---|---|
@@ -198,7 +199,7 @@ Your text itself is never drawn. Anyone who sees your screen sees the label.
 
 One-time onboarding lines explain the switch; while an action is pending its cells
 flash between the two states (same label, same width, nothing around it moves), and
-`not switched — try /afk or /back` marks a failed or unconfirmed action.
+a red `not switched` marks a failed or unconfirmed action (red, so a failed return never reads as the away orange).
 Before first use, a definitely missing state file gives
 the same neutral cells a button that starts AFK. Unreadable or invalid state is not
 clickable and never implies available. The desktop app draws the same switch; other
@@ -276,7 +277,8 @@ keep working, instead of the session waiting all night for a click. It never app
 reads only the state file, and does nothing when you are present or the state is unknown.
 Set `AFKSWITCH_KEEP_PROMPTS` to `1`, `true` or `yes` to keep the prompts, for example if you
 approve them remotely. The command that `/afk` and `/back` run is never declined, so you can
-always come back.
+always come back. Only that exact run counts: a command that merely mentions the helper, or
+chains another command onto it, is declined like any other.
 
 The decline message asks the session not to retry and not to look for another way to do
 the same thing. A session in a mode that never prompts is unaffected.

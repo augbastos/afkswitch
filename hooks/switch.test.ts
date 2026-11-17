@@ -9,9 +9,9 @@ const PROPS = {
 }
 const BASE = { type: 'Text' as const, props: {}, children: ['existing band'] }
 const ONBOARDING = [
-  "AFKSwitch is ready — [ AFK □■ ] means you're here.",
-  "Click it when you leave; click again when you're back.",
-  'Use /afk [note] or /back [note] for optional context.',
+  "AFKSwitch is ready: click the AFK box when you leave, and again when you're back.",
+  'An orange border means you are away.',
+  'Use /afk [note] or /back [note] to add a note.',
 ]
 const state = (status: string, version = 2) => JSON.stringify({
   version, status, since: '2026-09-30T12:00:00Z', context: null,
@@ -135,10 +135,12 @@ for (const [before, after, verb] of [
   test(`click from ${before} writes ${verb} at once, without queueing a command`, async ($, on) => {
     const disk = setup(on, before === 'missing' ? undefined : state(before))
     const runs: (readonly string[])[] = []
+    const cwds: (string | undefined)[] = []
     let commands = 0
     on('command.run', () => { commands += 1; return {} })
     on('process.run', ($, e) => {
       runs.push(e.argv)
+      cwds.push(e.init?.cwd)
       disk.raw = state(after)
       return ran()
     })
@@ -149,6 +151,9 @@ for (const [before, after, verb] of [
     expect(runs[0][0]).toBe('python3')
     expect(runs[0][1].replace(/\\/g, '/')).toMatch(HELPER)
     expect(runs[0].slice(2)).toEqual([verb])
+    // Run from the plugin's folder, never the open project's, where a planted python could sit.
+    expect(cwds[0]).toBeTruthy()
+    expect(runs[0][1].startsWith(`${cwds[0]}/`)).toBe(true)
     // No turn has to end: the press itself confirms the saved state.
     expect(await ui.find({ text: after === 'afk' ? '■□' : '□■' })).toBeDefined()
     expect(await ui.findAll({ type: 'Text', text: / AFK {2}/ })).toHaveLength(0)
@@ -299,7 +304,7 @@ for (const failure of ['refused', 'unchanged', 'no python'] as const) {
     await ui.press({ key: 'afkswitch-toggle' })
     expect(await ui.find({ key: 'afkswitch-toggle' })).toBeDefined()
     expect(await ui.find({ text: '□■' })).toBeDefined()
-    expect((await ui.find({ type: 'Text', text: 'not switched — try /afk or /back' }))?.props).toMatchObject({ color: '#F28C28' })
+    expect((await ui.find({ type: 'Text', text: 'not switched' }))?.props).toMatchObject({ color: '#E5484D' })
     await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 'synthetic', reason: 'answer' })
     expect(await ui.find({ text: /not switched/ })).toBeUndefined()
   })
@@ -470,6 +475,9 @@ for (const context of [
   'workout', 'work out at the gym', 'store the file', 'trip wire', 'network down', 'nightly build', 'homework',
   'cron job is running', 'let claude keep working', "it doesn't work yet", 'post office', 'out of office',
   'coffee shop', 'napkins', 'workshop', 'mercado livre', 'flight sim', 'sleep mode', 'walking the dog', 'dentist',
+  // Only the opening words count, and never a hyphenated compound.
+  'finishing the sleep-tracker refactor', 'keep the build green, then go to sleep',
+  'review the open pull requests before the work trip',
 ]) {
   test(`indicator: "${context}" is no known kind, and a note never gets an idle label`, async ($, on) => {
     const disk = setup(on, away(context))

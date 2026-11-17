@@ -27,15 +27,16 @@ both known states; there is no slider or track, and the context text is never dr
 While AFK, a short dim label may follow the box, outside its border. It is decoration,
 never state. When the context has a known word, the label names that kind of absence
 (sleeping, at work, shopping, traveling); it is drawn on every render and holds still.
-The match is a plain keyword hit, so the context stays opaque everywhere else. When
+The match is a plain keyword hit on the context's opening words (the first four before
+any clause break, hyphenated words excluded), so the context stays opaque everywhere else. When
 there is no context at all, an idle label shows on every third prompt or finished turn
 and is gone 8 seconds later; its emoji blinks for the first 3 seconds, the only motion
 in the switch. Context with no known word gets no label. No label is drawn while a
 press is pending or has failed.
 
 While an action is pending the cells flash between the two states in place, with the
-same label and width as the button; a failed action adds orange
-`not switched — try /afk or /back`.
+same label and width as the button; a failed action adds a red
+`not switched`, never the away orange.
 
 Only a read of version 1 or 2 with status `afk` or `available` confirms the drawing.
 Missing, unreadable, malformed or future files never imply available. The module

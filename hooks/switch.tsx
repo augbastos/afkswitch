@@ -57,10 +57,14 @@ const FLASH_MS = 250  // the cells' beat while a click is saving
 
 function kindOf(context: string | null): string | null {
   if (context === null) return null
+  // Only the opening words of the note name the person's own absence; a note that goes on to
+  // describe the agent's work ("finishing the sleep-tracker refactor") must not label it.
+  // Hyphenated compounds never count.
+  const lead = context.split(/[,.;:!?\n]/)[0].trim().split(/\s+/).slice(0, 4).join(' ').replace(/\S*-\S*/g, '_')
   let best: string | null = null
   let at = Infinity
   for (const [words, label] of KINDS) {
-    const found = context.search(words)
+    const found = lead.search(words)
     if (found >= 0 && found < at) { at = found; best = label }
   }
   return best
@@ -200,10 +204,15 @@ type Saved = { changed: boolean; generation: number; reset: boolean; status: Sta
 // Runs the helper itself instead of queueing /afk or /back: a queued command waits until the
 // session is idle, so a click during a long turn would never take effect.
 async function save($: EngineInterface, status: Status): Promise<Saved | null> {
-  const helper = `${$.plugin.root.replace(/[\\/]+$/, '')}/skills/afk/scripts/afkswitch_state.py`
+  const root = $.plugin.root.replace(/[\\/]+$/, '')
+  const helper = `${root}/skills/afk/scripts/afkswitch_state.py`
   for (const python of PYTHONS) {
     try {
-      const run = await $.process.run([...python, helper, status === 'afk' ? 'afk' : 'back'], { timeoutMs: 15000 })
+      // cwd is the plugin, not the open project: Windows looks for a bare `python` in the
+      // working directory first, and a repository could plant one there.
+      // The timeout outlasts the helper's own 15 s lock wait, so a busy state answers
+      // "ok": false instead of timing out and trying the next interpreter.
+      const run = await $.process.run([...python, helper, status === 'afk' ? 'afk' : 'back'], { cwd: root, timeoutMs: 20000 })
       if (!run.stdout.includes('"ok"')) continue
       // The helper answered; the caller still confirms on disk.
       const out = JSON.parse(run.stdout) as Saved & { ok: boolean }
@@ -263,7 +272,8 @@ async function notify($: EngineInterface, saved: Saved): Promise<void> {
   const rows = (listed.result.sections ?? []).flatMap(section => section.rows)
   const peers = rows.filter(row => row.type === 'interactive' && row.name && !GONE.test(row.status ?? ''))
   if (peers.length === 0) return
-  const self = /^This session is (.+?) \[/.exec(listed.result.listing ?? '')?.[1] ?? 'the session that sent this'
+  // Unknown name: peers get the text without the status request rather than a dead address.
+  const self = /^This session is (.+?) \[/.exec(listed.result.listing ?? '')?.[1] ?? null
   const text = message(saved, await guidance($, saved, self))
   await Promise.all(peers.map(row => {
     const twin = peers.filter(other => other.name === row.name).length > 1
@@ -398,14 +408,15 @@ export const register: Register = on => {
           {!cache.pending && intended === null ? <Text>{'  '}</Text> : null}
           {!cache.pending && intended === null ? <Text dimColor={status !== 'afk'}>{cells}</Text> : null}
           {cache.failed ? <Text>{' '}</Text> : null}
-          {cache.failed ? <Text color="#F28C28">not switched — try /afk or /back</Text> : null}
+          {/* Red, not the away orange: a failed return must not read as "still away". */}
+          {cache.failed ? <Text color="#E5484D">not switched</Text> : null}
         </Box>
         {indicator ? <Text key="afkswitch-indicator" dimColor>{` ${indicator}`}</Text> : null}
         </Box>
         {showOnboarding ? <Box flexDirection="column">
-          <Text dimColor>{"AFKSwitch is ready — [ AFK □■ ] means you're here."}</Text>
-          <Text dimColor>{"Click it when you leave; click again when you're back."}</Text>
-          <Text dimColor>Use /afk [note] or /back [note] for optional context.</Text>
+          <Text dimColor>{"AFKSwitch is ready: click the AFK box when you leave, and again when you're back."}</Text>
+          <Text dimColor>An orange border means you are away.</Text>
+          <Text dimColor>Use /afk [note] or /back [note] to add a note.</Text>
         </Box> : null}
       </Box>
     )

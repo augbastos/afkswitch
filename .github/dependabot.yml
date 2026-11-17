@@ -1,0 +1,26 @@
+# Version updates once a month, one grouped pull request per ecosystem, so the pinned
+# action SHAs and the CI's npm and pip pins do not age silently. Security updates still
+# arrive as soon as they are published.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /.github/ci
+    schedule:
+      interval: monthly
+    groups:
+      ci-npm:
+        patterns: ["*"]
+  - package-ecosystem: pip
+    directory: /.github/ci
+    schedule:
+      interval: monthly
+    groups:
+      ci-pip:
+        patterns: ["*"]

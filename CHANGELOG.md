@@ -10,10 +10,20 @@ All notable changes to this project are documented here. Format follows
 
 - While a click saves, the switch's cells flash in place instead of showing `saving…`, so the box keeps its shape and nothing around it is cut off.
 - A click marks the change in this session's transcript again (`/afkswitch:afk` or `/afkswitch:back`) the moment it lands, without waiting for or stopping the running turn.
+- A failed switch shows a short red `not switched` instead of the away orange, and the first-run lines describe the box as drawn.
+- The label beside the switch reads only the opening words of your note and ignores hyphenated words, so a note about the agent's work ("finishing the sleep-tracker refactor") no longer shows `💤 sleeping`. The emoji stay.
+- Monthly grouped Dependabot version updates for the CI's actions, npm and pip pins.
 
 ### Fixed
 
 - Sessions kept waiting for you while away: the session where you clicked, and sessions told by the hooks, got only the short presence event. They now also get the skill's guidance (keep working on everything already authorized; queue only what needs you), the same text `/afk` sends.
+- While away, a command that only mentioned the state helper (`git push … # afkswitch_state.py`) or chained another command onto it skipped the approval decline and left the session waiting. Only the helper's own run is left alone now.
+- The click runs Python from the plugin's folder instead of the open project, where a planted `python` could be picked up on Windows, and a busy state answers at once instead of retrying every interpreter for up to 45 seconds.
+- The state helper releases its lock only while it still owns it, so a holder that stalled past the stale timeout cannot remove the next holder's lock.
+- If the session's own name is unknown, peers get the return notice without a status request to a nonexistent address.
+- After a tool call the presence hook reads the transcript only when the state changed in the last 10 minutes.
+- The weekly host check pins its actions to the same commits as the main CI.
+- SECURITY.md describes everything the switch now does in its own session.
 
 ## [0.8.1] - 2026-11-16
 

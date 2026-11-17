@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -29,9 +30,9 @@ def files(tmp_path, monkeypatch):
     return sd / "state.json", transcript
 
 
-def state(path, status="afk", generation=5, context="work\n夜\t"):
+def state(path, status="afk", generation=5, context="work\n夜\t", since="2026-09-30T12:00:00Z"):
     path.write_text(json.dumps({"version": 2, "status": status, "generation": generation,
-                                "since": "2026-09-30T12:00:00Z",
+                                "since": since,
                                 "context": context if status == "afk" else None}), encoding="utf-8")
 
 
@@ -123,14 +124,25 @@ def test_hook_carries_the_skill_guidance_without_the_status_request():
 def test_post_tool_use_tells_a_running_claude_turn_once(files, monkeypatch):
     # The AFK button writes mid-turn; the next tool call carries the change, deduplicated like a prompt.
     path, transcript = files
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     transcript.write_text(sync_record(5), encoding="utf-8")
-    state(path)
+    state(path, since=now)
     assert call(files, monkeypatch, "claude", "PostToolUse") is None
-    state(path, generation=6)
+    state(path, generation=6, since=now)
     result = call(files, monkeypatch, "claude", "PostToolUse")
     assert result["hookSpecificOutput"] == {"hookEventName": "PostToolUse",
                                            "additionalContext": hook.load_helper().core_event("afk", 6, "work\n夜\t") + hook.guidance("afk", 6)}
     assert call(files, monkeypatch, "codex", "PostToolUse") is None
+
+
+def test_post_tool_use_skips_the_transcript_when_the_change_is_old(files, monkeypatch):
+    # Every tool call runs this hook; an old change already arrived at a prompt, so nothing is read.
+    path, transcript = files
+    transcript.write_text(sync_record(5), encoding="utf-8")
+    old = (datetime.now(timezone.utc) - timedelta(seconds=hook.RECENT_SECONDS + 60)).replace(microsecond=0).isoformat()
+    state(path, generation=6, since=old)
+    monkeypatch.setattr(hook, "last_marker", lambda path: pytest.fail("transcript read for an old change"))
+    assert call(files, monkeypatch, "claude", "PostToolUse") is None
 
 
 @pytest.mark.parametrize("host", ["claude", "codex"])
@@ -316,8 +328,29 @@ def test_approval_prompt_is_left_alone_when_present_or_opted_out(files, monkeypa
         assert call(files, monkeypatch, "claude", "PermissionRequest", raw=PROMPT) is not None, value
 
 
+@pytest.mark.parametrize("command", [
+    "git push origin main # afkswitch_state.py",
+    'python3 "/plugins/afkswitch/skills/afk/scripts/afkswitch_state.py" back; git push',
+    'python3 "/plugins/afkswitch/skills/afk/scripts/afkswitch_state.py" back && git push',
+    'python3 "/plugins/afkswitch/skills/afk/scripts/afkswitch_state.py" back & git push',
+    'git push | python3 "/plugins/afkswitch/skills/afk/scripts/afkswitch_state.py" back | tee x',
+    'python3 "/plugins/afkswitch/skills/afk/scripts/afkswitch_state.py" back $(git push)',
+    'cat afkswitch_state.py',
+    'git push origin x/python3 /plugins/afkswitch/skills/afk/scripts/afkswitch_state.py back',
+])
+def test_a_command_that_only_mentions_or_chains_the_helper_is_still_declined(files, monkeypatch, command):
+    monkeypatch.delenv("AFKSWITCH_KEEP_PROMPTS", raising=False)
+    state(files[0])
+    raw = json.dumps({"hook_event_name": "PermissionRequest", "tool_name": "Bash", "tool_input": {"command": command}})
+    assert call(files, monkeypatch, "claude", "PermissionRequest", raw=raw) is not None
+
+
 @pytest.mark.parametrize("command", ['python3 "/plugins/afkswitch/skills/back/scripts/afkswitch_state.py" back',
-                                     "py -3 skills/afk/scripts/afkswitch_state.py afk --context 'still away'"])
+                                     "py -3 skills/afk/scripts/afkswitch_state.py afk --context 'still away'",
+                                     "python3 '/plugins/afkswitch/skills/afk/scripts/afkswitch_state.py' afk --context 'a; b && c'",
+                                     "& python '/plugins/afkswitch/skills/back/scripts/afkswitch_state.py' back",
+                                     '"/opt/Python 3/bin/python3" "/plugins/afkswitch/skills/afk/scripts/afkswitch_state.py" read',
+                                     "printf '%s' 'away; dinner' | python3 /plugins/afkswitch/skills/afk/scripts/afkswitch_state.py afk --context-stdin"])
 def test_the_state_helper_itself_is_never_declined_so_back_always_works(files, monkeypatch, command):
     monkeypatch.delenv("AFKSWITCH_KEEP_PROMPTS", raising=False)
     state(files[0])

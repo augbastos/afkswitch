@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
@@ -81,6 +82,16 @@ def last_marker(path):
     return (int(last.group(1)), bool(last.group(2))) if last else (0, False)
 
 
+# PostToolUse runs after every tool call. It exists for a switch flipped during a running
+# turn, so it skips the transcript scan unless the state changed within this window.
+RECENT_SECONDS = 600
+
+
+def recent(helper, since) -> bool:
+    changed = helper.parse_since(since)
+    return changed is not None and (datetime.now(timezone.utc) - changed).total_seconds() <= RECENT_SECONDS
+
+
 GUIDANCE = re.compile(r"```text\n(.*?)```", re.S)
 
 
@@ -106,6 +117,29 @@ DECLINED = ("AFKSwitch: the human is away, so nobody can answer this approval pr
             "needs no approval.")
 
 
+# The helper run by /afk and /back: a Python interpreter, the helper's path, then afk, back or read.
+# It may start the command or follow a single pipe (stdin carries the context).
+# The interpreter may carry a path, with spaces only inside quotes.
+_PYTHON = r"""(?:python3?|py)(?:\.exe)?"""
+HELPER_CALL = re.compile(
+    r"""(?:^|\|)\s*(?:&\s*)?"""
+    rf"""(?:"[^"]*[\\/]{_PYTHON}"|'[^']*[\\/]{_PYTHON}'|(?:[^"'\s|]*[\\/])?{_PYTHON})\s+(?:-3\s+)?"""
+    r"""["']?[^"'|;&\n]*afkswitch_state\.py["']?\s+(?:afk|back|read)(?:\s|$)""")
+QUOTED = re.compile(r"""'[^']*'|"(?:[^"\\]|\\.)*\"""")
+# Outside quoted text (the context), any of these would run a second command.
+CHAINED = re.compile(r"[;\n`]|&&|\|\||\$\(|(?<!^)&")
+
+
+def is_helper_command(command: str) -> bool:
+    """True only for the state helper's own run, with nothing chained before or after it."""
+    if not HELPER_CALL.search(command):
+        return False
+    bare = QUOTED.sub("''", command).strip()
+    if bare.startswith("&"):
+        bare = bare[1:]  # PowerShell's call operator
+    return not CHAINED.search(bare) and bare.count("|") <= 1
+
+
 def decline_prompt(data: dict):
     """While AFK, answer the host's approval prompt with "not now". It never grants anything.
 
@@ -115,9 +149,10 @@ def decline_prompt(data: dict):
         return None  # for people who approve prompts remotely while away
     tool_input = data.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
-    if isinstance(command, str) and "afkswitch_state.py" in command:
+    if isinstance(command, str) and is_helper_command(command):
         # /back and /afk run the state helper: declining that would lock the human out of
-        # returning. The prompt is only left as it is, never approved.
+        # returning. The prompt is only left as it is, never approved. A command that merely
+        # mentions the helper, or chains another command onto it, is declined like any other.
         return None
     helper = load_helper()
     prior = helper.load(helper.state_dir() / "state.json")
@@ -146,6 +181,8 @@ def response(host: str, event: str, data: dict):
     if state is None or prior.kind == "future":
         return None
     generation = state["generation"]
+    if event == "PostToolUse" and not recent(helper, state["since"]):
+        return None  # an older change already reached this session at a prompt or start
     reset = False
     if host == "agy":
         if state["status"] != "afk":
