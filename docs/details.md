@@ -38,12 +38,15 @@ A session that has not answered `/back` is *no reply yet* — never "done", "fai
 ## Host capabilities
 
 <!-- capabilities:details:start -->
-| Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
-|---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart, UserPromptSubmit and PostToolUse sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
-| Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
-| Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
-| Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
+| Host | State | Sync | Notify | Fan-in | Visual switch | Live-verified | Notes | Evidence |
+|---|---|---|---|---|---|---|---|---|
+| Claude Code (reference) | yes | yes | yes | yes | yes | yes | Read-only SessionStart, UserPromptSubmit and PostToolUse sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Codex | yes | no | no | no | no | no | Hooks for SessionStart, UserPromptSubmit and PostToolUse (transcript marker, like Claude Code); the installer writes them to ~/.codex/hooks.json and Codex asks you to trust them with /hooks. The default sandbox blocks $afk from writing ~/.afkswitch: use the afkswitch command or --codex-writable-state. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only. |
+| Hermes Agent | yes | no | no | no | no | no | pre_llm_call shell hook in ~/.hermes/config.yaml, told on every call while away (short event only); Hermes asks once to approve it. Skills are not installed by default because Hermes has no manual-only flag and the model could change presence; --hermes-skills opts in. Notify and fanIn are not supported. | adapters/hermes/hooks.yaml; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only. |
+| Cursor | yes | no | no | no | no | no | Skills from ~/.agents/skills; a sessionStart hook tells new sessions while away. Later events stay unwired until a live test shows Cursor keeps the marker in its transcript. Notify and fanIn are not supported. | adapters/cursor/hooks.json; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only. |
+| GitHub Copilot CLI | yes | no | no | no | no | no | Skills from ~/.agents/skills; a sessionStart hook in ~/.copilot/hooks tells new sessions while away (userPromptSubmitted output is dropped by the host). Notify and fanIn are not supported. | adapters/copilot/afkswitch.json; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only. |
+| Antigravity CLI | yes | no | no | no | no | no | PreInvocation hook, told on every call while away (short event only). The installer copies the plugin to ~/.gemini/config/plugins/afkswitch and the skills to ~/.gemini/config/skills. Skills may be auto-invoked: Antigravity documents no manual-only flag. Notify and fanIn are not supported. | adapters/agy/; scripts/install.py; synthetic conformance/hooks and conformance/install tests only. |
+| Generic local agent | yes | yes | no | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
 <!-- capabilities:details:end -->
 
 The plugin-directory availability noted above is dated 2026-10-02: that channel's
@@ -144,12 +147,59 @@ The skills notify peers only after `"ok": true`.
 
 ### Manual install (bare `/afk` and `/back` as personal skills)
 
-```powershell
-pwsh -File install.ps1              # install or update into ~/.claude/skills
-pwsh -File install.ps1 -Uninstall   # remove
-```
+`python scripts/install.py --host claude` copies the two skills into `~/.claude/skills`
+(see [Installer](#installer)). Personal-skill installation alone does not install the
+visual switch, which comes with the plugin.
 
-Personal-skill installation alone does not install plugin hooks or the visual switch.
+## Installer
+
+`python scripts/install.py` (Python 3.9+, standard library only) wires every agent it
+finds to the one presence file. Nothing is written until you have seen the change.
+
+1. It finds the agents you have by their configuration folder (`~/.claude`, `~/.codex`,
+   `~/.hermes`, `~/.cursor`, `~/.copilot`, `~/.gemini/config`) or, for Codex, its command.
+   `--host claude,codex` limits the run.
+2. It builds every change, prints a diff for each file and the folders it will copy, then
+   asks `Apply? [y/N]`. `--dry-run` stops after the diff; `--yes` skips the question.
+3. It copies AFKSwitch to a folder of its own, outside the state folder, so a sandboxed
+   agent that may write presence can never rewrite the code its hooks run:
+   `%LOCALAPPDATA%\AFKSwitch` on Windows, `~/Library/Application Support/AFKSwitch` on macOS,
+   `$XDG_DATA_HOME/afkswitch` (or `~/.local/share/afkswitch`) on Linux.
+4. Hook commands name the Python that ran the installer by its absolute path, so `python3`
+   versus `python` never matters. Uninstalling that Python silently stops the hooks.
+
+| Agent | Skills | Hook it adds | How the agent learns |
+|---|---|---|---|
+| Claude Code | `~/.claude/skills` | none when the plugin is enabled (it has its own); else `~/.claude/settings.json` | at once from the switch; at each prompt and tool call |
+| Codex | `~/.agents/skills` | `~/.codex/hooks.json`: session start, each prompt, each tool call | next prompt or tool call; trust the hooks with `/hooks` first |
+| Hermes Agent | none unless `--hermes-skills` | a managed block in `~/.hermes/config.yaml`: `pre_llm_call` | every model call while away; Hermes asks once to approve the hook |
+| Cursor | `~/.agents/skills` | `~/.cursor/hooks.json`: `sessionStart` | new sessions while away |
+| GitHub Copilot CLI | `~/.agents/skills` | `~/.copilot/hooks/afkswitch.json`: `sessionStart` | new sessions while away |
+| Antigravity CLI | `~/.gemini/config/skills` | the plugin folder `~/.gemini/config/plugins/afkswitch`: `PreInvocation` | every model call while away |
+| Local agent (Ollama and others) | none | none: it prints the `presence_sync.py check` call to make before each turn | when the agent calls the check |
+
+Hermes gets no skills by default because it has no way to keep a skill manual-only: the
+model could change your presence by itself. Use the `afkswitch` command there instead.
+
+**How it edits.** JSON files are parsed and merged: other entries keep their order, its own
+entries are replaced, and a second run writes the same bytes. A file it cannot parse (for
+example one with comments) is left alone and the lines to paste are printed. YAML and TOML
+get a block between `# >>> afkswitch (managed, do not edit) >>>` and `# <<< afkswitch <<<`;
+if the same top-level key already exists outside that block, the file is left alone and
+the lines are printed. Before its first write to an existing file it saves
+`<file>.afkswitch-backup-<UTC time>`, and it records every edit in `install-manifest.json`
+in its folder.
+
+**The `afkswitch` command** lands in `~/.local/bin` (macOS, Linux) or in the installer's
+`bin` folder on Windows; `--add-to-path` adds that folder to your user PATH. Bind
+`afkswitch afk` to a keyboard shortcut to go away without opening an agent: a Windows
+shortcut's "Shortcut key", a macOS Shortcuts "Run Shell Script" action, or a GNOME or KDE
+custom shortcut.
+
+**Removal.** `--uninstall` removes its hook entries and managed blocks, the skills it
+installed (only folders whose `SKILL.md` names `~/.afkswitch/state.json`), the command and
+its folder. It never restores a backup, because you may have edited the file since, and it
+never touches your presence state.
 
 ## Claude Code visual switch
 
@@ -172,10 +222,11 @@ Click it, or focus it with `ctrl+x tab` and press Enter.
 The button label carries no context. `AFK  □□` is neutral unknown state.
 
 While you are away, a dim label may follow the box, outside its border. It names
-the kind of absence when your `/afk` text has a known word or phrase. It is a plain keyword
-hit, not understanding: it does not know "not", and when several kinds match, the one that
-comes first in your text wins. The lists are narrow on purpose, because a note is often about
-the agent's work ("keep working", "cron job"), not about you:
+the kind of absence when your `/afk` text opens with a known word or phrase: only the first
+four words before any comma or full stop count, and a hyphenated word never does. It is a
+plain keyword hit, not understanding: it does not know "not", and when several kinds match,
+the one that comes first wins. The lists are narrow on purpose, because a note is often about
+the agent's work ("keep working", "finishing the sleep-tracker refactor"), not about you:
 
 | Label | Words and phrases |
 |---|---|
@@ -196,8 +247,9 @@ emoji blinks for the first 3 seconds; kind labels never blink. The idle labels a
 such as `🛸 abducted, back soon`.
 Your text itself is never drawn. Anyone who sees your screen sees the label.
 
-One-time onboarding lines explain the switch; `saving…` marks a pending action and
-`not switched — try /afk or /back` marks a failed or unconfirmed action.
+One-time onboarding lines explain the switch; while an action is pending its cells
+flash between the two states (same label, same width, nothing around it moves), and
+a red `not switched` marks a failed or unconfirmed action (red, so a failed return never reads as the away orange).
 Before first use, a definitely missing state file gives
 the same neutral cells a button that starts AFK. Unreadable or invalid state is not
 clickable and never implies available. The desktop app draws the same switch; other
@@ -222,8 +274,10 @@ the slash command instead, which the host queues until the session is idle, so a
 during a long turn sat on `saving…` until that turn ended. The helper takes effect at once
 and starts no model turn here. When the state changed, the switch lists sessions with
 `ListAgents` and sends each live local interactive one the skill's own message (the core
-event plus the guidance in `references/message.md`) through `$.session.send`; a turn
-already running here learns at its next tool call. Only a state read after the helper
+event plus the guidance in `references/message.md`) through `$.session.send`. In this
+session it writes a dim `/afkswitch:afk` or `/afkswitch:back` line in the transcript, as
+the command's own row used to mark it, and appends the same message (without the `/back`
+status request) as a row the model reads at its next step, without stopping the turn. Only a state read after the helper
 exits confirms the displayed status; if it does not, the switch shows the failure message
 until the next turn ends.
 
@@ -273,7 +327,8 @@ keep working, instead of the session waiting all night for a click. It never app
 reads only the state file, and does nothing when you are present or the state is unknown.
 Set `AFKSWITCH_KEEP_PROMPTS` to `1`, `true` or `yes` to keep the prompts, for example if you
 approve them remotely. The command that `/afk` and `/back` run is never declined, so you can
-always come back.
+always come back. Only that exact run counts: a command that merely mentions the helper, or
+chains another command onto it, is declined like any other.
 
 The decline message asks the session not to retry and not to look for another way to do
 the same thing. A session in a mode that never prompts is unaffected.
@@ -283,8 +338,10 @@ the same thing. A session in a mode that never prompts is unaffected.
 Codex's default `workspace-write` sandbox refuses writes outside the current workspace, so
 the first `$afkswitch:afk` either asks you to approve running the state helper with write
 access to `~/.afkswitch` or reports `state transition failed: write refused` — it never
-claims a state it could not save. To allow it for good,
-add the absolute path of that folder to `~/.codex/config.toml`:
+claims a state it could not save. The `afkswitch` command is not sandboxed and always
+works. To let the skills write too, run the installer with `--codex-writable-state`, which
+adds this block for you; any sandboxed Codex turn can then change your presence. Or add the
+absolute path of that folder to `~/.codex/config.toml` yourself:
 
 ```toml
 [sandbox_workspace_write]

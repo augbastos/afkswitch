@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {"command": "\"<python>\" \"<app>/scripts/presence_hook.py\" --host cursor --event sessionStart", "timeout": 5}
+    ]
+  }
+}

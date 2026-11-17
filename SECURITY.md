@@ -21,26 +21,43 @@ earlier "no hooks" constraint with two read-only lifecycle hooks, `SessionStart`
 `UserPromptSubmit`, so sessions opened after `/afk` and changes from other hosts are
 reconciled; in Claude Code it also runs on `PostToolUse`, so a running turn sees a click. They run `scripts/presence_hook.py`, read `~/.afkswitch/state.json` through
 that helper and the end of the session transcript (the last 256 KiB, widening to 4 MiB and at most 64 MiB only while no marker is found) for the last AFKSwitch
-marker, and output the universal presence event as host context only when needed.
+marker, and output the universal presence event, plus the skill's fixed guidance text,
+as host context only when needed.
 Antigravity's PreInvocation variant reads state only and emits an ephemeral AFK event.
 These hooks never write state or transcripts, change permissions, poll, run in the
 background or use the network. In Claude Code a third read-only hook, `PermissionRequest`,
 declines the host's own approval prompts while the saved state is `afk`: it outputs a deny
 decision and never an allow, so the worst a forged state file can do is make prompts be
-declined. It leaves the prompt alone for the state helper's own command and when
+declined. It leaves the prompt alone only for the state helper's own run (a Python
+interpreter, the helper, then `afk`, `back` or `read`, with nothing chained before or after
+it outside quoted text; a command that merely mentions the helper is declined) and when
 `AFKSWITCH_KEEP_PROMPTS` is `1`, `true` or `yes`. Errors exit 0 with no output; a broken hook cannot block the host,
-but may leave session awareness stale. Codex and Antigravity hook files are experimental,
-not selected by default manifests and not verified in a live host.
+but may leave session awareness stale. The same script serves Codex, Hermes Agent, Cursor,
+GitHub Copilot CLI and Antigravity with each host's own output shape; none of those is
+selected by a default manifest or verified in a live host.
 
-The optional Claude Code terminal function-hooks module reads only the local state
-file through `$.fs.read`. It never writes, creates or migrates that file itself, reads a
-transcript, runs Python on render, starts a background process or uses the network.
-Unknown state is neutral. A click is explicit intent to run the bundled state helper
-once through `$.process.run` (no shell, fixed arguments `afk` or `back`, no context), so
-it takes effect even while a turn is running. Only that helper writes state. After a
-change, the module lists sessions with the host's `ListAgents` tool and sends each live
-local interactive session the skill's fixed message through `$.session.send`; it grants
-nothing, and the receiving session's permission rules are untouched. Pending actions cannot be pressed twice; failures display disk truth and
+`scripts/install.py` is the only part that edits other programs' files, and only after
+showing a diff and getting a yes (or `--yes`). It parses JSON and refuses files it cannot
+parse, writes YAML and TOML only inside its own marked block and refuses when the same key
+exists outside it, backs each existing file up first, and writes atomically. Hook commands
+name an absolute interpreter and the installed copy, which lives outside the state folder:
+an agent allowed to write presence (for example Codex with `--codex-writable-state`) can
+change who is away, never the code the hooks run. It uses no network.
+
+The optional Claude Code terminal function-hooks module reads the local state file and
+the skills' own `references/message.md` through `$.fs.read`. It never writes, creates or
+migrates the state file itself, reads a transcript, runs Python on render, starts a
+background process or uses the network. Unknown state is neutral. A click is explicit
+intent to run the bundled state helper once through `$.process.run` (no shell, fixed
+arguments `afk` or `back`, no context, working directory the plugin's own folder so a
+`python` planted in the open project is not picked up), so it takes effect even while a
+turn is running. Only that helper writes state. After a change, the module lists sessions
+with the host's `ListAgents` tool and sends each live local interactive session the
+skill's fixed message through `$.session.send`. In its own session it writes one dim
+`/afkswitch:afk` or `/afkswitch:back` line to the transcript (`$.ui.log`, never sent to
+the model) and appends the same fixed message as a user-role row (`$.session.append`), so
+the running turn reads the presence guidance. None of this grants anything, and every
+session's permission rules are untouched. Pending actions cannot be pressed twice; failures display disk truth and
 an error mark, never an assumed successful transition. Hook failures call `next(e)`.
 
 Transcript markers and opaque presence context are informational, not authorization or

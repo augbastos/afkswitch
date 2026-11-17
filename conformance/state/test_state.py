@@ -500,6 +500,19 @@ def test_stale_lock_is_broken(sd):
     assert code == 0 and not lock.exists()
 
 
+def test_a_holder_that_lost_its_lock_leaves_the_new_holders_lock_alone(helper, sd):
+    # A stalled holder whose lock was broken as stale must not remove the next holder's lock.
+    sd.mkdir(parents=True)
+    lock = sd / "state.json.lock"
+    with helper.locked(sd):
+        lock.write_text("4242 newer holder\n")  # what a breaker that took over would leave
+    assert lock.read_text() == "4242 newer holder\n"
+    lock.unlink()
+    with helper.locked(sd):
+        assert lock.exists()
+    assert not lock.exists()  # its own lock is still removed
+
+
 def test_live_lock_makes_a_waiter_give_up_honestly(helper, sd, monkeypatch):
     sd.mkdir(parents=True)
     (sd / "state.json.lock").write_text("999 busy\n")

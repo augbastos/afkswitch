@@ -1,0 +1,4 @@
+hooks:
+  pre_llm_call:
+    - command: '"<python>" "<app>/scripts/presence_hook.py" --host hermes --event pre_llm_call'
+      timeout: 5

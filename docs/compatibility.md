@@ -4,6 +4,18 @@ Only versions that were actually run are listed. Anything not run is **pending**
 assumed. The support levels themselves are in
 [`adapters/capabilities.json`](../adapters/capabilities.json).
 
+## AFKSwitch 0.9.0 — agents wired by the installer
+
+Codex, Hermes Agent, Cursor, GitHub Copilot CLI and Antigravity CLI hooks are tested with
+synthetic input only (`conformance/hooks`, `conformance/install`). None is live-verified
+yet, so none claims sync in [the matrix](../adapters/capabilities.json). A host earns
+`liveVerified` and `sync` with an entry here naming the host version, the date, the OS and
+what was seen, following the live check in [CONTRIBUTING](../CONTRIBUTING.md#live-check).
+
+| Host | Version | Date | OS | Result |
+|---|---|---|---|---|
+| — | — | — | — | no live check recorded yet |
+
 ## Marketplace module loading — 2026-10-02
 
 | Host | Version | What was run | Result |

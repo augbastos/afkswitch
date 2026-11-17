@@ -37,11 +37,13 @@ applies, and outputs should be reviewed before sharing.
 Version 0.6 replaces the earlier "no hooks" constraint with two read-only lifecycle
 hooks, SessionStart and UserPromptSubmit, because sessions started after `/afk` and
 changes from another host need current presence. In Claude Code the same hook also runs
-after each tool call (PostToolUse), so a turn already running learns of a switch click. `scripts/presence_hook.py` reads
+after each tool call (PostToolUse), so a turn already running learns of a switch click; after
+a tool call it reads the transcript only when the state changed in the last 10 minutes. `scripts/presence_hook.py` reads
 `~/.afkswitch/state.json` through the existing helper and the end of the session transcript (the last 256 KiB, widening to 4 MiB and at most 64 MiB
 only while no marker is found) to find its last AFKSwitch marker. It outputs only the universal
 presence event (status, generation, AFK context and presence semantics) in host context,
-never transcript contents. Antigravity's PreInvocation variant reads no transcript and
+followed in Claude Code and Codex by the skill's fixed guidance text from its
+`references/message.md`, never transcript contents. Antigravity's PreInvocation variant reads no transcript and
 outputs an ephemeral AFK event only. These lifecycle hooks never write state or transcripts,
 change permissions, poll, run in the background or use the network. Any error exits 0 without
 output; missing, invalid and future state versions also produce nothing. No database
@@ -52,7 +54,8 @@ you are away it answers "not now" to Claude Code's own approval prompts, so the 
 declined instead of the session waiting. It can only decline, never approve. It receives the
 tool name and input from the host and stores or sends none of it. It leaves the prompt alone
 when you are present, when the state is missing or unreadable, for the `/afk` and `/back`
-helper itself, and when `AFKSWITCH_KEEP_PROMPTS` is `1`, `true` or `yes`.
+helper's own run (not a command that only mentions it or chains another onto it), and when
+`AFKSWITCH_KEEP_PROMPTS` is `1`, `true` or `yes`.
 
 Agent hosts may process prompts, skills, messages, logs, or local files according to their
 own terms and privacy policies. AFKSwitch does not control host-level data handling.
@@ -71,9 +74,16 @@ context, and never writes state itself, reads transcripts, starts Python during
 render, polls or makes network requests. A click runs the bundled state helper once
 (`afk` or `back`, no context), which writes the state file exactly as `/afk` and `/back`
 do. When that changed the state, it sends each live local session the same message the
-skill sends (no context), through the host's session messaging; host data handling applies.
+skill sends (no context), through the host's session messaging, and appends that message
+to this session's own conversation; host data handling applies.
 Codex and Antigravity hook files remain experimental and are not selected by default
 manifests; their live-host sync is not claimed.
+
+The installer (`scripts/install.py`) reads the configuration folders of the agents it
+supports to see which you have, copies AFKSwitch to a folder of its own and, after you
+approve a diff, adds its hook entries to those agents' config files. It keeps a backup of
+each file it changes and a list of its edits next to the copy, so it can remove them
+again. It sends nothing anywhere.
 
 ## Future changes
 

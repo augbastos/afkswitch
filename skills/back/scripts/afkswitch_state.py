@@ -247,7 +247,9 @@ def locked(directory: Path):
     refused_since = None
     while True:
         try:
-            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            # Binary: on Windows text mode would write the token's LF as CRLF, and the
+            # release below compares the bytes.
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0), 0o600)
         except FileExistsError:
             refused_since = None
             if _lock_is_stale(path):
@@ -275,6 +277,10 @@ def locked(directory: Path):
     finally:
         for attempt in range(50):
             try:
+                # A holder that stalled past the stale timeout may have lost the lock to a
+                # breaker; removing the new holder's file would let a third writer in.
+                if path.read_bytes() != token:
+                    break
                 os.unlink(path)
                 break
             except FileNotFoundError:

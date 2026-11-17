@@ -38,3 +38,18 @@ Do not claim host parity without a reproducible test.
 ## Compatibility
 
 Preserve the portable contract in `spec/presence.md`. Host-specific behavior belongs in adapter documentation or narrowly scoped skill instructions.
+
+### Live check
+
+A host's hooks claim `sync` only after this check, recorded in
+[`docs/compatibility.md`](docs/compatibility.md) with the host version, date and OS:
+
+1. Run `python scripts/install.py --host <id>` and approve whatever the host asks
+   (Codex `/hooks`, Hermes's first-run approval).
+2. With the agent open, run `afkswitch afk` in a terminal. At the agent's next hook boundary
+   (new session, prompt, tool call or model call, per the matrix) the model must be able to
+   quote the `[AFKSwitch g<N>]` line.
+3. For hosts told once per generation, a second prompt must not repeat it.
+4. Run `afkswitch back`; the agent must stop treating you as away.
+5. Run `python scripts/install.py --host <id> --uninstall` and check the config files are
+   back to their previous content.

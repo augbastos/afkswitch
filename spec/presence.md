@@ -27,14 +27,16 @@ both known states; there is no slider or track, and the context text is never dr
 While AFK, a short dim label may follow the box, outside its border. It is decoration,
 never state. When the context has a known word, the label names that kind of absence
 (sleeping, at work, shopping, traveling); it is drawn on every render and holds still.
-The match is a plain keyword hit, so the context stays opaque everywhere else. When
+The match is a plain keyword hit on the context's opening words (the first four before
+any clause break, hyphenated words excluded), so the context stays opaque everywhere else. When
 there is no context at all, an idle label shows on every third prompt or finished turn
 and is gone 8 seconds later; its emoji blinks for the first 3 seconds, the only motion
 in the switch. Context with no known word gets no label. No label is drawn while a
 press is pending or has failed.
 
-A pending action adds dim `saving…`;
-a failed action adds orange `not switched — try /afk or /back`.
+While an action is pending the cells flash between the two states in place, with the
+same label and width as the button; a failed action adds a red
+`not switched`, never the away orange.
 
 Only a read of version 1 or 2 with status `afk` or `available` confirms the drawing.
 Missing, unreadable, malformed or future files never imply available. The module
@@ -374,6 +376,18 @@ Peers that start after `/afk`, or were unreachable, are not proactively notified
 closes the awareness gap at the next supported lifecycle boundary without claiming push
 delivery; the generic host can call its synchronous reference check.
 
+A hook adapter picks one of three ways to avoid repeating itself, by what the host keeps:
+
+- **transcript**: the host keeps a transcript the hook can read (Claude Code, Codex). Tell
+  each generation once, found by its `[AFKSwitch g<N>]` marker; returns are told too.
+- **start**: a fresh session. Tell only while away; nothing needs remembering.
+- **ephemeral**: injected text is not kept between calls (Hermes Agent `pre_llm_call`,
+  Antigravity `PreInvocation`). Tell the short event on every call while away, and nothing
+  once the human is back.
+
+A host is promoted from start to transcript only after a live check shows the marker lands
+in its transcript; otherwise every later event would repeat the notice.
+
 ## Adapter capabilities
 
 Declare five booleans independently:
@@ -391,10 +405,13 @@ Documentation must state the capabilities actually supported by each host. The c
 adapter is in [`adapters/README.md`](../adapters/README.md).
 
 <!-- capabilities:spec:start -->
-| Host | State | Sync | Notify | Fan-in | Visual switch | Notes | Evidence |
-|---|---|---|---|---|---|---|---|
-| Claude Code (reference) | yes | yes | yes | yes | yes | Read-only SessionStart, UserPromptSubmit and PostToolUse sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
-| Codex | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only. |
-| Antigravity CLI | yes | no | no | no | no | Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported. | adapters/agy/ static plugin layout; synthetic conformance/hooks tests only. |
-| Generic local agent | yes | yes | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
+| Host | State | Sync | Notify | Fan-in | Visual switch | Live-verified | Notes | Evidence |
+|---|---|---|---|---|---|---|---|---|
+| Claude Code (reference) | yes | yes | yes | yes | yes | yes | Read-only SessionStart, UserPromptSubmit and PostToolUse sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed. | hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle. |
+| Codex | yes | no | no | no | no | no | Hooks for SessionStart, UserPromptSubmit and PostToolUse (transcript marker, like Claude Code); the installer writes them to ~/.codex/hooks.json and Codex asks you to trust them with /hooks. The default sandbox blocks $afk from writing ~/.afkswitch: use the afkswitch command or --codex-writable-state. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel. | hooks/codex.json; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only. |
+| Hermes Agent | yes | no | no | no | no | no | pre_llm_call shell hook in ~/.hermes/config.yaml, told on every call while away (short event only); Hermes asks once to approve it. Skills are not installed by default because Hermes has no manual-only flag and the model could change presence; --hermes-skills opts in. Notify and fanIn are not supported. | adapters/hermes/hooks.yaml; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only. |
+| Cursor | yes | no | no | no | no | no | Skills from ~/.agents/skills; a sessionStart hook tells new sessions while away. Later events stay unwired until a live test shows Cursor keeps the marker in its transcript. Notify and fanIn are not supported. | adapters/cursor/hooks.json; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only. |
+| GitHub Copilot CLI | yes | no | no | no | no | no | Skills from ~/.agents/skills; a sessionStart hook in ~/.copilot/hooks tells new sessions while away (userPromptSubmitted output is dropped by the host). Notify and fanIn are not supported. | adapters/copilot/afkswitch.json; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only. |
+| Antigravity CLI | yes | no | no | no | no | no | PreInvocation hook, told on every call while away (short event only). The installer copies the plugin to ~/.gemini/config/plugins/afkswitch and the skills to ~/.gemini/config/skills. Skills may be auto-invoked: Antigravity documents no manual-only flag. Notify and fanIn are not supported. | adapters/agy/; scripts/install.py; synthetic conformance/hooks and conformance/install tests only. |
+| Generic local agent | yes | yes | no | no | no | no | Sync via the reference helper when the host calls check before each turn. | adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host. |
 <!-- capabilities:spec:end -->

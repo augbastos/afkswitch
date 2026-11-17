@@ -1,5 +1,5 @@
 {
-  "description": "Canonical AFKSwitch support matrix. scripts/validate.py renders it into docs/details.md, spec/presence.md and adapters/README.md (python scripts/validate.py --write) and fails when they drift. The root README keeps a shorter hand-written summary.",
+  "description": "Canonical AFKSwitch support matrix. scripts/validate.py renders it into docs/details.md, spec/presence.md and adapters/README.md (python scripts/validate.py --write) and fails when they drift. liveVerified is true only with a dated live check in docs/compatibility.md. The root README keeps a shorter hand-written summary.",
   "capabilities": {
     "state": "Read and write durable presence state.",
     "sync": "Reconcile global generation with session last_seen_generation at a lifecycle boundary before meaningful work; reset starts a new epoch.",
@@ -11,40 +11,152 @@
     {
       "id": "claude-code",
       "name": "Claude Code",
-      "state": true, "sync": true, "notify": true, "fanIn": true,
-      "visualSwitch": true, "visualSwitchSurfaces": ["terminal", "desktop"],
+      "state": true,
+      "sync": true,
+      "notify": true,
+      "fanIn": true,
+      "visualSwitch": true,
+      "visualSwitchSurfaces": [
+        "terminal",
+        "desktop"
+      ],
       "reference": true,
-      "invoke": ["/afk", "/back"],
-      "native": ["ListAgents", "SendMessage", "notify_when_idle"],
+      "invoke": [
+        "/afk",
+        "/back"
+      ],
+      "native": [
+        "ListAgents",
+        "SendMessage",
+        "notify_when_idle"
+      ],
       "notes": "Read-only SessionStart, UserPromptSubmit and PostToolUse sync; native notification and return status collection; a read-only PermissionRequest hook declines approval prompts while away (AFKSWITCH_KEEP_PROMPTS=1 keeps them). Visual switch on the terminal and the desktop app, on builds with function hooks; terminal clicks live-tested on Windows with Claude Code 2.1.287. The desktop drawing, macOS and Linux are covered by the module tests, not by a live click. The Claude plugin directory copy currently omits the switch while mods are reviewed.",
-      "evidence": "hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle."
+      "evidence": "hooks/hooks.json; hooks/switch.tsx and switch.test.ts; scripts/presence_hook.py; bundled skills: ListAgents, SendMessage, notify_when_idle.",
+      "liveVerified": true
     },
     {
       "id": "codex",
       "name": "Codex",
-      "state": true, "sync": false, "notify": false, "fanIn": false,
-      "visualSwitch": false, "visualSwitchSurfaces": [],
+      "state": true,
+      "sync": false,
+      "notify": false,
+      "fanIn": false,
+      "visualSwitch": false,
+      "visualSwitchSurfaces": [],
       "reference": false,
-      "invoke": ["$afkswitch:afk", "$afkswitch:back"],
+      "invoke": [
+        "$afk",
+        "$back",
+        "$afkswitch:afk",
+        "$afkswitch:back"
+      ],
       "native": [],
-      "notes": "Experimental hook files shipped, not verified in a live host; no hooks pointer in default manifests. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel.",
-      "evidence": "hooks/codex.json; scripts/presence_hook.py; synthetic conformance/hooks tests only."
+      "notes": "Hooks for SessionStart, UserPromptSubmit and PostToolUse (transcript marker, like Claude Code); the installer writes them to ~/.codex/hooks.json and Codex asks you to trust them with /hooks. The default sandbox blocks $afk from writing ~/.afkswitch: use the afkswitch command or --codex-writable-state. Notify NOT SUPPORTED: codex queue --thread <id> --message may start a turn (wake/credits); codex agents has no machine-readable listing or delivery receipt. FanIn NOT SUPPORTED: no reply channel.",
+      "evidence": "hooks/codex.json; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only.",
+      "liveVerified": false
     },
     {
-      "id": "agy", "name": "Antigravity CLI", "reference": false,
-      "state": true, "sync": false, "notify": false, "fanIn": false,
-      "visualSwitch": false, "visualSwitchSurfaces": [],
-      "invoke": ["/afk", "/back"], "native": ["PreInvocation"],
-      "notes": "Experimental hook files shipped, not verified in a live host; no default hook wiring. Peer messaging reach between independent CLI sessions is unproven; notify and fanIn are not supported.",
-      "evidence": "adapters/agy/ static plugin layout; synthetic conformance/hooks tests only."
+      "id": "hermes",
+      "name": "Hermes Agent",
+      "reference": false,
+      "state": true,
+      "sync": false,
+      "notify": false,
+      "fanIn": false,
+      "visualSwitch": false,
+      "visualSwitchSurfaces": [],
+      "invoke": [
+        "afkswitch afk",
+        "afkswitch back"
+      ],
+      "native": [
+        "pre_llm_call"
+      ],
+      "notes": "pre_llm_call shell hook in ~/.hermes/config.yaml, told on every call while away (short event only); Hermes asks once to approve it. Skills are not installed by default because Hermes has no manual-only flag and the model could change presence; --hermes-skills opts in. Notify and fanIn are not supported.",
+      "evidence": "adapters/hermes/hooks.yaml; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only.",
+      "liveVerified": false
     },
     {
-      "id": "generic-local", "name": "Generic local agent", "reference": false,
-      "state": true, "sync": true, "notify": false, "fanIn": false,
-      "visualSwitch": false, "visualSwitchSurfaces": [],
-      "invoke": ["/afk", "/back"], "native": [],
+      "id": "cursor",
+      "name": "Cursor",
+      "reference": false,
+      "state": true,
+      "sync": false,
+      "notify": false,
+      "fanIn": false,
+      "visualSwitch": false,
+      "visualSwitchSurfaces": [],
+      "invoke": [
+        "/afk",
+        "/back"
+      ],
+      "native": [
+        "sessionStart"
+      ],
+      "notes": "Skills from ~/.agents/skills; a sessionStart hook tells new sessions while away. Later events stay unwired until a live test shows Cursor keeps the marker in its transcript. Notify and fanIn are not supported.",
+      "evidence": "adapters/cursor/hooks.json; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only.",
+      "liveVerified": false
+    },
+    {
+      "id": "copilot",
+      "name": "GitHub Copilot CLI",
+      "reference": false,
+      "state": true,
+      "sync": false,
+      "notify": false,
+      "fanIn": false,
+      "visualSwitch": false,
+      "visualSwitchSurfaces": [],
+      "invoke": [
+        "/afk",
+        "/back"
+      ],
+      "native": [
+        "sessionStart"
+      ],
+      "notes": "Skills from ~/.agents/skills; a sessionStart hook in ~/.copilot/hooks tells new sessions while away (userPromptSubmitted output is dropped by the host). Notify and fanIn are not supported.",
+      "evidence": "adapters/copilot/afkswitch.json; scripts/presence_hook.py; scripts/install.py; synthetic conformance/hooks and conformance/install tests only.",
+      "liveVerified": false
+    },
+    {
+      "id": "agy",
+      "name": "Antigravity CLI",
+      "reference": false,
+      "state": true,
+      "sync": false,
+      "notify": false,
+      "fanIn": false,
+      "visualSwitch": false,
+      "visualSwitchSurfaces": [],
+      "invoke": [
+        "/afk",
+        "/back"
+      ],
+      "native": [
+        "PreInvocation"
+      ],
+      "notes": "PreInvocation hook, told on every call while away (short event only). The installer copies the plugin to ~/.gemini/config/plugins/afkswitch and the skills to ~/.gemini/config/skills. Skills may be auto-invoked: Antigravity documents no manual-only flag. Notify and fanIn are not supported.",
+      "evidence": "adapters/agy/; scripts/install.py; synthetic conformance/hooks and conformance/install tests only.",
+      "liveVerified": false
+    },
+    {
+      "id": "generic-local",
+      "name": "Generic local agent",
+      "reference": false,
+      "state": true,
+      "sync": true,
+      "notify": false,
+      "fanIn": false,
+      "visualSwitch": false,
+      "visualSwitchSurfaces": [],
+      "invoke": [
+        "/afk",
+        "/back"
+      ],
+      "native": [],
       "notes": "Sync via the reference helper when the host calls check before each turn.",
-      "evidence": "adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host."
+      "evidence": "adapters/generic/presence_sync.py; conformance/sync and conformance/cross-host.",
+      "liveVerified": false
     }
   ]
 }
