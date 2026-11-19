@@ -24,3 +24,18 @@ updates:
     groups:
       ci-pip:
         patterns: ["*"]
+    # CI runs the suite on Python 3.9, the helper's floor. Each version below is the first of
+    # its package that needs Python 3.10, so it stays held until the floor moves.
+    ignore:
+      - dependency-name: pytest
+        versions: [">=9.0.0"]
+      - dependency-name: jsonschema
+        versions: [">=4.26.0"]
+      - dependency-name: referencing
+        versions: [">=0.37.0"]
+      - dependency-name: rpds-py
+        versions: [">=0.28.0"]
+      - dependency-name: pluggy
+        versions: [">=1.7.0"]
+      - dependency-name: iniconfig
+        versions: [">=2.2.0"]
