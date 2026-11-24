@@ -49,44 +49,16 @@ hook, and none of their hooks is verified in a live host yet. See
 In Claude Code, `/afk` saves your presence and tells the live local sessions the host
 can reach; the report names any it could not reach. Authorized work continues, and
 only steps that need you wait. `/back` collects a summary with what needs you first,
-then what got done. Optional context is information, never permission; `/back` context
-belongs to that return event and is not saved in the state file.
+then what got done. See [usage](docs/details.md#usage) for context and return behavior.
 
-While AFK, sessions keep a durable decision queue and record reversible choices within
-existing authorization. Independent authorized work continues. At the next natural pause
-after `/back`, each session presents all queued decisions together as multiple-choice
-questions, recommended option first, then resumes asking in real time.
-
-Click the terminal switch to save the same state without context. The click takes effect at
-once, even mid-turn, and tells every live local session right away with the same message
-`/afk` or `/back` sends. Use the slash commands when you also want a note.
+Click the Claude Code switch to change your presence without a note, even mid-turn.
+A changed click writes `/afkswitch:afk` or `/afkswitch:back` in the transcript.
+See [switch mechanics](docs/details.md#claude-code-visual-switch).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/readme/states-dark.png">
   <img src="assets/readme/states-light.png" alt="The switch in its two states: at the computer (set by /back) and away from the computer (set by /afk)">
 </picture>
-
-### What the switch runs by itself
-
-The switch is a Claude Code mod (`hooks/switch.tsx`). It does these things and nothing else:
-
-- **One state write per click.** A click runs the bundled state helper (`afk` when you are
-  present, `back` when you are away) once, with `python3`, `python` or `py -3`, whichever
-  starts first. It never runs anything without a click. A slash command would wait until
-  the session is idle; the helper does not.
-- **One notice per live session, after a click that changed the state.** It lists sessions
-  with `ListAgents` and sends each live local interactive one (never Remote Control or cloud)
-  the message the `/afk` or `/back` skill sends, read from that skill's `references/message.md`.
-  It goes through the host's own session messaging, not the network.
-- **One line in this session's transcript per changed click**, `/afkswitch:afk` or
-  `/afkswitch:back`, and the same message for this session's model, so the turn already
-  running keeps going with the AFK guidance instead of waiting for you.
-- **It reads `HOME` or `USERPROFILE`** only to find `~/.afkswitch/state.json`
-  (`AFKSWITCH_STATE_DIR` overrides the folder). These are folder paths, not credentials.
-- **Two short timers** blink and then hide the idle label; nothing polls.
-
-The three rules the plugin follows (one writer, explicit actions only, presence is not
-permission) are in [details](docs/details.md#three-rules).
 
 ## Requirements
 
@@ -165,24 +137,14 @@ from writing the state folder: use the `afkswitch` command, or see
 
 ## Test
 
-Run from the repo root. Python 3.9 or newer; `pytest` is required; `jsonschema` is optional and enables the schema checks.
+Run from the repo root with Python 3.9+ and `pytest`:
 
 ```text
 python scripts/validate.py
 python -m pytest conformance -q -p no:cacheprovider
 ```
 
-CI installs pinned dependencies from `.github/ci/requirements.txt` and runs
-`python scripts/test_ci.py`, which runs every conformance module in a separate
-process with its own temporary directory, using at most one process per CPU.
-The OS and Python support matrix stays in `.github/workflows/ci.yml`.
-The required checks are `Safety` and `CI passed`. `Safety` scans PR commits for
-secrets and checks critical paths against the base revision's policy. `CI passed`
-requires every job to succeed; only `Safety` may be skipped outside pull requests.
-
-On a Claude Code build with function hooks, `claude plugin test .` runs the switch module
-tests. The opt-in model evals in [`evals/`](evals/README.md) are not part of CI.
-See [conformance](conformance/README.md) for what each check proves.
+See [conformance](conformance/README.md) for CI and optional checks.
 
 ## Layout
 
@@ -208,29 +170,11 @@ See [conformance](conformance/README.md) for what each check proves.
 
 ## What AFKSwitch reads, writes, and sends
 
-**Privacy:** state stays local in `~/.afkswitch/state.json`, or in `state.json` under
-`AFKSWITCH_STATE_DIR` when set. It contains status, time, optional AFK context, and a
-change counter. The helper briefly creates a lock while writing. If the old state
-contains malformed content and its bytes can be read, the helper copies it to
-`state.json.corrupt-<time>` before replacing it. If the file cannot be read, the
-transition fails and the file stays intact.
-
-AFKSwitch runs no server and makes no network requests of its own. Messages between
+Presence stays in a local state file. AFKSwitch runs no server and makes no network requests of its own. Messages between
 sessions travel through the host's own mechanisms and are governed by the host.
-
-Read-only sync hooks (session start, each prompt and, in Claude Code, each tool call)
-inspect state and a bounded session transcript tail, then exit.
-A third read-only hook declines Claude Code's approval prompts while you are away.
-The switch reads presence from state. While you are away it also matches your context
-against a short word list to draw a label such as `💤 sleeping` beside it; the text itself
-is never drawn. There is no daemon, polling, account, or telemetry.
-Claude Code peer messages can include your optional context; host data handling applies.
-
-The installer writes only after showing you every change: it copies AFKSwitch to a folder
-of its own, adds its hook entries to each chosen agent's config file (backing the file up
-first) and records what it did so `--uninstall` removes exactly that.
-
-Read the [Privacy policy](PRIVACY.md) and [Security policy](SECURITY.md).
+Claude Code can send your optional context to other sessions through its own messaging.
+See [data handling](docs/details.md#what-afkswitch-reads-writes-and-sends),
+[privacy](PRIVACY.md) and [security](SECURITY.md).
 
 ## How it works
 
