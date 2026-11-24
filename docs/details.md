@@ -352,6 +352,32 @@ On Windows, Codex runs `workspace-write` only when its Windows sandbox is config
 (`[windows] sandbox = "unelevated"` or `"elevated"`); otherwise the session is read-only and
 `$afkswitch:afk` reports that the state was not saved.
 
+## What AFKSwitch reads, writes, and sends
+
+**Privacy:** state stays local in `~/.afkswitch/state.json`, or in `state.json` under
+`AFKSWITCH_STATE_DIR` when set. It contains status, time, optional AFK context, and a
+change counter. The helper briefly creates a lock while writing. If the old state
+contains malformed content and its bytes can be read, the helper copies it to
+`state.json.corrupt-<time>` before replacing it. If the file cannot be read, the
+transition fails and the file stays intact.
+
+AFKSwitch runs no server and makes no network requests of its own. Messages between
+sessions travel through the host's own mechanisms and are governed by the host.
+
+Read-only sync hooks (session start, each prompt and, in Claude Code, each tool call)
+inspect state and a bounded session transcript tail, then exit.
+A third read-only hook declines Claude Code's approval prompts while you are away.
+The switch reads presence from state. While you are away it also matches your context
+against a short word list to draw a label such as `💤 sleeping` beside it; the text itself
+is never drawn. There is no daemon, polling, account, or telemetry.
+Claude Code peer messages can include your optional context; host data handling applies.
+
+The installer writes only after showing you every change: it copies AFKSwitch to a folder
+of its own, adds its hook entries to each chosen agent's config file (backing the file up
+first) and records what it did so `--uninstall` removes exactly that.
+
+Read the [Privacy policy](../PRIVACY.md) and [Security policy](../SECURITY.md).
+
 ## Three rules
 
 1. **One writer: the helper.** Only the bundled helper saves presence. The switch and
