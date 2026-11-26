@@ -205,6 +205,7 @@ See [conformance](conformance/README.md) for what each check proves.
 |---|---|
 | `AFKSWITCH_STATE_DIR` | Folder that holds `state.json` instead of `~/.afkswitch` |
 | `AFKSWITCH_KEEP_PROMPTS=1` | Keep Claude Code approval prompts open while you are away |
+| `AFKSWITCH_KEEP_QUESTIONS=1` | Keep Claude Code questions (multiple choice) open while you are away; approval prompts are still declined |
 
 ## What AFKSwitch reads, writes, and sends
 

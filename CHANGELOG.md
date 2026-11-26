@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `AFKSWITCH_KEEP_QUESTIONS=1` keeps the agent's multiple-choice questions open in Claude Code while you are away, so a session with nothing else to do waits on the question; approval prompts are still declined.
+
 ## [0.9.0] - 2026-11-17
 
 ### Added
