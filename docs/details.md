@@ -326,8 +326,8 @@ approval prompts: the call is declined with a note telling the session to defer 
 keep working, instead of the session waiting all night for a click. It never approves anything,
 reads only the state file, and does nothing when you are present or the state is unknown.
 Set `AFKSWITCH_KEEP_PROMPTS` to `1`, `true` or `yes` to keep the prompts, for example if you
-approve them remotely. Set `AFKSWITCH_KEEP_QUESTIONS` the same way to keep only the agent's
-multiple-choice questions open (they grant nothing), while approval prompts are still declined.
+approve them remotely. The agent's multiple-choice questions are never declined: they grant
+nothing, so they wait for you instead of ending the session without the question.
 The command that `/afk` and `/back` run is never declined, so you can
 always come back. Only that exact run counts: a command that merely mentions the helper, or
 chains another command onto it, is declined like any other.

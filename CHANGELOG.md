@@ -6,9 +6,9 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
-### Added
+### Changed
 
-- `AFKSWITCH_KEEP_QUESTIONS=1` keeps the agent's multiple-choice questions open in Claude Code while you are away, so a session with nothing else to do waits on the question; approval prompts are still declined.
+- In Claude Code, the agent's multiple-choice questions are no longer declined while you are away: they grant nothing, so a session with nothing else to do waits on the question for you. Approval prompts are still declined.
 
 ## [0.9.0] - 2026-11-17
 

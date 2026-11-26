@@ -379,20 +379,12 @@ def test_approval_prompt_is_left_alone_when_present_or_opted_out(files, monkeypa
 QUESTION = '{"hook_event_name": "PermissionRequest", "tool_name": "AskUserQuestion", "tool_input": {"questions": []}}'
 
 
-def test_question_waits_only_with_keep_questions(files, monkeypatch):
+def test_question_waits_while_away_and_prompts_are_still_declined(files, monkeypatch):
     path, _ = files
     monkeypatch.delenv("AFKSWITCH_KEEP_PROMPTS", raising=False)
-    monkeypatch.delenv("AFKSWITCH_KEEP_QUESTIONS", raising=False)
     state(path)
-    assert call(files, monkeypatch, "claude", "PermissionRequest", raw=QUESTION) is not None  # default: declined
-    for value in ("1", "true", "YES", " yes "):
-        monkeypatch.setenv("AFKSWITCH_KEEP_QUESTIONS", value)
-        assert call(files, monkeypatch, "claude", "PermissionRequest", raw=QUESTION) is None, value
-        # the opt-in covers questions only: an approval prompt is still declined
-        assert call(files, monkeypatch, "claude", "PermissionRequest", raw=PROMPT) is not None, value
-    for value in ("", "0", "false", "no"):
-        monkeypatch.setenv("AFKSWITCH_KEEP_QUESTIONS", value)
-        assert call(files, monkeypatch, "claude", "PermissionRequest", raw=QUESTION) is not None, value
+    assert call(files, monkeypatch, "claude", "PermissionRequest", raw=QUESTION) is None  # waits for the human
+    assert call(files, monkeypatch, "claude", "PermissionRequest", raw=PROMPT) is not None  # still declined
 
 
 @pytest.mark.parametrize("command", [

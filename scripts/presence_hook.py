@@ -147,9 +147,10 @@ def decline_prompt(data: dict):
     """
     if os.environ.get("AFKSWITCH_KEEP_PROMPTS", "").strip().lower() in ("1", "true", "yes"):
         return None  # for people who approve prompts remotely while away
-    if (data.get("tool_name") == "AskUserQuestion"
-            and os.environ.get("AFKSWITCH_KEEP_QUESTIONS", "").strip().lower() in ("1", "true", "yes")):
-        return None  # a question to the human waits for them; it grants nothing
+    if data.get("tool_name") == "AskUserQuestion":
+        # A question to the human grants nothing: it waits for them instead of being declined, so a
+        # session with nothing else to do stays on the question rather than ending without it.
+        return None
     tool_input = data.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
     if isinstance(command, str) and is_helper_command(command):
